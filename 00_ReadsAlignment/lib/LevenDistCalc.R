@@ -1,5 +1,6 @@
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(pbapply))
 
@@ -7,9 +8,7 @@ suppressPackageStartupMessages(library(pbapply))
 args <- commandArgs(trailingOnly = TRUE)
 reads_path <- as.character(args[1])
 my_path <- as.character(args[2])
-
-my_path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/"
-setwd(paste0(my_path, "scripts/"))
+setwd(paste0(my_path, "../lib"))
 
 # ---------------
 # obtain average levenshtein distance for all chromosomes
@@ -24,13 +23,11 @@ lev.dist <- pblapply(1:22, function(i){
   print(paste0("Chromosome: ", chromosome), quote = FALSE)
   
   # load files
-  files <- list.files(path = paste0("../data/reads/", reads_path, "/breakpoint_positions/", 
-                                    chromosome, "/"),
+  files <- list.files(path = paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/"),
                       pattern = "alignment_file_")
   
   tables <- lapply(files, function(x){
-    read.table(paste0("../data/reads/", reads_path, "/breakpoint_positions/", 
-                      chromosome, "/", x), 
+    fread(paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/", x), 
                sep = ",", header = TRUE)
   })
   
@@ -99,10 +96,10 @@ lev.plot <- df %>%
   labs(title = "Average Levenshtein Distance plotted as Mean + 1 St.Dev", 
        subtitle = paste0("Overall Average: ", round(mean(df$Mean), 3)))
 
-ggsave(paste0("../figures/", reads_path, "/AvgLevenshteinDistance.pdf"),
+ggsave(paste0("../../figures/", reads_path, "/AvgLevenshteinDistance.pdf"),
        plot = lev.plot)
 
 # save lev dist 
 write.csv(x = df, 
-          file = paste0("../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"), 
+          file = paste0("../../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"), 
           row.names = FALSE)

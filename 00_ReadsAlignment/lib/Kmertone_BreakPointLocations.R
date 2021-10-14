@@ -1,8 +1,6 @@
-my_path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/"
-reads_path="Simons_exp_1"
-
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(utils))
 suppressPackageStartupMessages(library(data.table))
@@ -12,7 +10,7 @@ args <- commandArgs(trailingOnly = TRUE)
 reads_path <- as.character(args[1])
 my_path <- as.character(args[2])
 
-setwd(paste0(my_path, "scripts/"))
+setwd(paste0(my_path, "../lib/"))
 
 # ---------------
 pb <- txtProgressBar(min = 1, max = 23, style = 3)
@@ -28,16 +26,16 @@ for(i in 1:22){
   }
   
   # load data sets
-  files <- list.files(path = paste0("../data/reads/", reads_path, "/breakpoint_positions/",
-                                    chromosome, "/"),
+  files <- list.files(path = paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/"),
                       pattern = "alignment_file_")
   
   # concatenate files
   tables <- lapply(files, function(x){
-    fread(file = paste0("../data/reads/", reads_path, "/breakpoint_positions/",
+    fread(file = paste0("../../data/reads/", reads_path, "/breakpoint_positions/",
                         chromosome,"/", x), sep = ",", header = TRUE)
   })
-  df <- do.call(rbind, tables) %>% as_tibble()
+  df <- do.call(rbind, tables) %>% 
+    as_tibble()
   
   # convert any non-integer columns to integers
   df <- df %>% 
@@ -50,7 +48,7 @@ for(i in 1:22){
   
   # save bottom ~95% of the levenshtein distance score
   # import average lev dist
-  lev.dist.df <- read.table(file = paste0("../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"),
+  lev.dist.df <- read.table(file = paste0("../../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"),
                             sep = ",",
                             header = TRUE) %>% as_tibble()
   
@@ -64,7 +62,7 @@ for(i in 1:22){
     mutate("chromosome" = chr.name)
   
   # save start breakpoint positions and chromosome name as txt file
-  write.table(x = df, row.names = FALSE, file = paste0("../data/kmertone/breakpoints/", chromosome, ".txt"))
+  write.table(x = df, row.names = FALSE, file = paste0("../../data/kmertone/breakpoints/", chromosome, ".txt"))
 
   setTxtProgressBar(pb, i)
 }

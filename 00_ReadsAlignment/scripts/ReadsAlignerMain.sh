@@ -1,6 +1,6 @@
 #!/bin/bash
 
-my_path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/scripts/ReadsAlignment/"
+my_path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/00_ReadsAlignment/scripts/"
 
 for exp_num in 6
 do
@@ -46,17 +46,12 @@ do
 	# obtain average levenshtein distance for all sequences
 	mkdir ../../figures/$reads_path/
 	echo "Calculating levenshtein distances..."
-	Rscript ../../lib/LevenDistCalc.R $reads_path $my_path
+	Rscript ../lib/LevenDistCalc.R $reads_path $my_path
 	echo "Calculated levenshtein distances!"
-
-	# obtain normalised breakpoint data
-	echo "Calculating normalised breakpoint frequencies..."
-	Rscript ../../lib/BreakPointFrequency.R $reads_path $ref_path $my_path	
-	echo "Calculated normalised breakpoint frequencies!"
 
 	# obtain files of breakpoint locations and chromosome number for kmertone
 	echo "Obtaining breakpoint locations for kmertone..."
-	Rscript ../../lib/Kmertone_BreakPointLocations.R $reads_path $my_path
+	Rscript ../lib/Kmertone_BreakPointLocations.R $reads_path $my_path
 	echo "Breakpoint locations for kmertone obtained!"
 
 	# zip read files to save hard disk space

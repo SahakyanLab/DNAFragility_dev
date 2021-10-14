@@ -17,23 +17,22 @@ reads_path = sys.argv[4]
 my_path = sys.argv[5]
 
 # define path and chromosome file
-path = "/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/"
 chromosome = f"chr{nr_cur}"
 
 # load reference genome
-for record in SeqIO.parse(f"{path}data/ref/{ref_path}/{chromosome}.fasta", "fasta"):
+for record in SeqIO.parse(f"{my_path}../../data/ref/{ref_path}/{chromosome}.fasta", "fasta"):
     record_ref = record.seq
 
 # obtain all files from dir and sort them
-search_folder = f"{path}data/reads/{reads_path}/fasta_chunks/"
+search_folder = f"{my_path}../../data/reads/{reads_path}/fasta_chunks/"
 
 # remove hidden files
-FILE = f"{path}data/reads/{reads_path}/fasta_chunks/.DS_Store"
+FILE = f"{my_path}../../data/reads/{reads_path}/fasta_chunks/.DS_Store"
 if os.path.exists(FILE):
     subprocess.call(f"rm {FILE}", shell = True)
     
-if os.path.exists(f"{path}data/reads/{reads_path}/fasta_chunks/._*"):
-    subprocess.call(f"{path}data/reads/{reads_path}/fasta_chunks/._*", shell = True)
+if os.path.exists(f"{my_path}../../data/reads/{reads_path}/fasta_chunks/._*"):
+    subprocess.call(f"{my_path}../../data/reads/{reads_path}/fasta_chunks/._*", shell = True)
 
 results = [os.path.join(root, f) for root, dirs, files in os.walk(search_folder) for f in files] 
 sorted_results = sorted(results, key = lambda x: os.path.splitext(x)[1])
@@ -52,7 +51,7 @@ for keys in two_mers:
     string_matches = [m for m in re.finditer(pattern = keys, string = ref_seq)]
     two_mers[keys] = len(string_matches)
     
-with open(f'{path}data/two_mers/{reads_path}/{chromosome}_ref.csv', 'w') as f:
+with open(f'{my_path}../../data/two_mers/{reads_path}/{chromosome}_ref.csv', 'w') as f:
     f.write('value,count\n')
     for key, value in two_mers.items():
         f.write(f'{key},{value}\n')
@@ -130,12 +129,12 @@ df = df.drop_duplicates(subset = 'bp_start_pos')
 
 # save positions as txt file
 if ind == 1:    
-    df.to_csv(f'{path}data/reads/{reads_path}/breakpoint_positions/{chromosome}/alignment_file_1.txt', 
+    df.to_csv(f'{my_path}../../data/reads/{reads_path}/breakpoint_positions/{chromosome}/alignment_file_1.txt', 
                 index = False, 
                 sep = ',', 
                 mode = 'a')
 elif ind == 2:
-    df.to_csv(f'{path}data/reads/{reads_path}/breakpoint_positions/{chromosome}/alignment_file_2.txt', 
+    df.to_csv(f'{my_path}../../data/reads/{reads_path}/breakpoint_positions/{chromosome}/alignment_file_2.txt', 
                 index = False, 
                 sep = ',', 
                 mode = 'a')
