@@ -15,7 +15,8 @@ RMSD <- function(a, b){
 # load data sets
 chromosome = "chr1"
 
-files <- list.files(path = "../../data/rmsd/exp_1/", pattern = "new_")
+files <- list.files(path = "../../data/rmsd/exp_1/", 
+                    pattern = "new_")
 file.name <- paste0("kmer_", seq(from = 2, to = 8, by = 2))
 
 # sort files
@@ -24,6 +25,10 @@ files <- str_sort(files, numeric = TRUE)
 data.sets <- sapply(files, function(x){
   readRDS(file = paste0("../../data/rmsd/exp_1/", x))
 })
+
+# normalise by z-score where AUC = 1
+# data.sets <- apply(data.sets, 2, scale, center = FALSE)
+# colnames(data.sets) <- file.name
 
 rmsd.plot <- data.sets %>%
   as_tibble() %>%
@@ -38,7 +43,7 @@ rmsd.plot <- data.sets %>%
        title = "RMSD kmer frequencies")
 rmsd.plot
 
-ggsave(filename = paste0("../../figures/Simons_exp_1/", chromosome, "_RMSD.png"),
+ggsave(filename = paste0("../../figures/Simons_exp_1/", chromosome, "nofreq_RMSD.png"),
        plot = rmsd.plot)
 
 plots <- lapply(1:dim(data.sets)[2], function(x){
@@ -68,5 +73,5 @@ plots <- lapply(1:dim(data.sets)[2], function(x){
   return(plots)
 })
 
-ggsave(filename = paste0("../../figures/Simons_exp_1/", chromosome, "sidebyside_RMSD.png"),
+ggsave(filename = paste0("../../figures/Simons_exp_1/", chromosome, "sidebyside_nofreq_RMSD.png"),
        plot = do.call(grid.arrange, plots))

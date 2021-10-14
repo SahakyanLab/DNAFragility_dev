@@ -44,15 +44,7 @@ which(is.na(df))
 ref.seq <- readBStringSet(filepath = paste0("../../data/ref/Simons_exp/", chromosome, ".fasta"), 
                           format = "fasta")
 
-# create control breakpoints
-N <- nrow(df)
-Max <- width(ref.seq)
-df <- data.frame(start.pos = floor(runif(n = N, min = 1, max = Max))) %>% 
-  as_tibble() %>%
-  arrange(start.pos)
-
-# iters <- seq(from = 2, to = 10, by = 2)
-iters=k=2
+iters <- seq(from = 2, to = 10, by = 2)
 rmsd.all.values <- lapply(iters, function(k){
   # obtain all possible (4**k) k-mer permutations
   bases   <- c("A", "G", "C", "T")
@@ -73,8 +65,6 @@ rmsd.all.values <- lapply(iters, function(k){
     filter(cond == TRUE) %>%
     select(-cond)
   
-  
-  ind = -294
   freq.calc.i <- function(ind, k){
     # dyad frequency of iteration, i
     df <- df %>%
@@ -89,18 +79,6 @@ rmsd.all.values <- lapply(iters, function(k){
     # obtain k-mers from alignment data
     mat <- matrix(data = c(df$start.pos-start.pos,
                            df$start.pos+end.pos), ncol = 2)
-    
-    # remove out of bounds positions
-    mat <- as.data.frame(mat)
-    to.remove <- subset(mat, V1 >= Max & V2 >= Max) 
-    
-    if(nrow(to.remove)>0){
-      to.remove <- as.integer(rownames(to.remove))
-      mat <- mat[-to.remove,]
-      rownames(mat) <- c()
-      mat <- as.matrix(mat)
-      df <- df[-to.remove,] 
-    }
     
     # extract k-meric counts and relative frequencies
     k.mer.seq <- str_sub(string = ref.seq, start = mat[,1], end = mat[,2]) %>%
@@ -123,7 +101,7 @@ rmsd.all.values <- lapply(iters, function(k){
     return(k.mer.i)
   }
   
-  freq <- pbsapply(-100:101, function(x){
+  freq <- pbsapply(-300:301, function(x){
     freq.calc.i(ind = x, k = k)$freq
   })
 
@@ -133,7 +111,7 @@ rmsd.all.values <- lapply(iters, function(k){
   
   # save output
   saveRDS(object = rmsd.values,
-          file = paste0("../../data/rmsd/exp_1/new_control_rmsd_kmer_", k, ".Rdata"))
+          file = paste0("../../data/rmsd/exp_1/new_rmsd_kmer_", k, ".Rdata"))
   
   # return(rmsd.values)
 })
