@@ -3,12 +3,15 @@ suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(pbapply))
+suppressPackageStartupMessages(library(stringr))
+pbo = pboptions(type="txt")
 
 # read arguments from job submission
 args <- commandArgs(trailingOnly = TRUE)
-reads_path <- as.character(args[1])
-my_path <- as.character(args[2])
-setwd(paste0(my_path, "../lib"))
+reads.path <- as.character(args[1])
+my.path <- as.character(args[2])
+cores <- as.numeric(args[3])
+setwd(paste0(my.path, "../lib"))
 
 # ---------------
 # obtain average levenshtein distance for all chromosomes
@@ -20,23 +23,25 @@ lev.dist <- pblapply(1:22, function(i){
   } else {
     chromosome = paste0("chr", i)
   }
-  print(paste0("Chromosome: ", chromosome), quote = FALSE)
   
   # load files
-  files <- list.files(path = paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/"),
-                      pattern = "alignment_file_")
+  files <- list.files(path = paste0("../data/reads/", reads.path, "/breakpoint_positions/", chromosome, "/"),
+                      pattern = "new_alignment_file")
+  
+  # sort files
+  files <- str_sort(files, numeric = TRUE)
   
   tables <- lapply(files, function(x){
-    fread(paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/", x), 
+    fread(paste0("../data/reads/", reads.path, "/breakpoint_positions/", chromosome, "/", x), 
                sep = ",", header = TRUE)
   })
   
   # concatenate files and change class to numeric
   df <- do.call(rbind , tables) %>% 
     as_tibble() %>%
-    rename(start.pos = bp_start_pos,
-           lev.dist  = lev_dist) %>%
-    na.omit()
+    rename(start.pos = bp.start.pos,
+           lev.dist  = lev.dist) %>%
+    drop_na()
   
   # convert any non-integer columns to integers
   df <- df %>% 
@@ -58,7 +63,7 @@ lev.dist <- pblapply(1:22, function(i){
   SD <- sqrt(sum((lev.dist.df$lev.dist)**2*lev.dist.df$count)/(sum(lev.dist.df$count)-1))
   
   return(list(Mean, SD))
-})
+}, cl = cores)
 
 # concatenate results and calculate overall statistics
 df <- do.call(rbind, lev.dist) %>%
@@ -96,10 +101,10 @@ lev.plot <- df %>%
   labs(title = "Average Levenshtein Distance plotted as Mean + 1 St.Dev", 
        subtitle = paste0("Overall Average: ", round(mean(df$Mean), 3)))
 
-ggsave(paste0("../../figures/", reads_path, "/AvgLevenshteinDistance.pdf"),
+ggsave(paste0("../figures/", reads.path, "/AvgLevenshteinDistance.pdf"),
        plot = lev.plot)
 
 # save lev dist 
-write.csv(x = df, 
-          file = paste0("../../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"), 
-          row.names = FALSE)
+fwrite(x = df, 
+       file = paste0("../data/average_levdist/", reads.path, "/AvgLevenshteinDistance.csv"), 
+       row.names = FALSE)

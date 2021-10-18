@@ -3,20 +3,20 @@ suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(utils))
-suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(stringr))
+pbo = pboptions(type="txt")
 
 # read arguments from job submission
 args <- commandArgs(trailingOnly = TRUE)
-reads_path <- as.character(args[1])
-my_path <- as.character(args[2])
+reads.path <- as.character(args[1])
+my.path <- as.character(args[2])
+cores <- as.numeric(args[3])
 
-setwd(paste0(my_path, "../lib/"))
+setwd(paste0(my.path, "../lib/"))
 
 # ---------------
-pb <- txtProgressBar(min = 1, max = 23, style = 3)
-
 # obtain average levenshtein distance for all chromosomes
-for(i in 1:22){
+lev.dist <- pblapply(1:22, function(i){
   if(i == 23){
     chromosome = "chrX"
   } else if (i == 24) {
@@ -26,12 +26,15 @@ for(i in 1:22){
   }
   
   # load data sets
-  files <- list.files(path = paste0("../../data/reads/", reads_path, "/breakpoint_positions/", chromosome, "/"),
-                      pattern = "alignment_file_")
+  files <- list.files(path = paste0("../data/reads/", reads.path, "/breakpoint_positions/", chromosome, "/"),
+                      pattern = "new_alignment_file")
+  
+  # sort files
+  files <- str_sort(files, numeric = TRUE)
   
   # concatenate files
   tables <- lapply(files, function(x){
-    fread(file = paste0("../../data/reads/", reads_path, "/breakpoint_positions/",
+    fread(file = paste0("../data/reads/", reads.path, "/breakpoint_positions/",
                         chromosome,"/", x), sep = ",", header = TRUE)
   })
   df <- do.call(rbind, tables) %>% 
@@ -48,21 +51,20 @@ for(i in 1:22){
   
   # save bottom ~95% of the levenshtein distance score
   # import average lev dist
-  lev.dist.df <- read.table(file = paste0("../../data/two_mers/", reads_path, "/AvgLevenshteinDistance.csv"),
-                            sep = ",",
-                            header = TRUE) %>% as_tibble()
+  lev.dist.df <- fread(file = paste0("../data/average_levdist/", reads.path, "/AvgLevenshteinDistance.csv"),
+                       sep = ",",
+                       header = TRUE) %>% as_tibble()
   
   df <- df %>%
-    filter(lev_dist < mean(lev.dist.df$SD1))
+    filter(lev.dist < mean(lev.dist.df$SD1))
   
   # keep only bp start position column
   chr.name = rep(chromosome, dim(df)[1])
   df <- df %>% 
-    select(bp_start_pos) %>% 
+    select(bp.start.pos) %>% 
     mutate("chromosome" = chr.name)
   
   # save start breakpoint positions and chromosome name as txt file
-  write.table(x = df, row.names = FALSE, file = paste0("../../data/kmertone/breakpoints/", chromosome, ".txt"))
-
-  setTxtProgressBar(pb, i)
-}
+  fwrite(x = df, row.names = FALSE, 
+         file = paste0("../../data/kmertone/", reads.path, "/breakpoints/", chromosome, ".txt"))
+}, cl = cores)

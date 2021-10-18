@@ -1,61 +1,49 @@
 #!/bin/bash
 
-my_path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/00_ReadsAlignment/scripts/"
+my_path="Documents/DPhil/SonicBreaks_dev/00_ReadsAlignment/scripts/"
+cores=4
+interval=3000000
 
-for exp_num in 6
+for exp_num in 1
 do
-	pre_reads_path="Simons_exp_$((exp_num-1))"
 	reads_path="Simons_exp_${exp_num}"
 	ref_path="Simons_exp"
 	two_mer_ref="Simons_exp_ref"
 
-	# unzip raw read files
-	echo "Unzipping raw read files..."
-	gunzip ../../data/reads/$reads_path/*
-	echo "Raw read files unzipped!"
-
 	# create directories to save files
-	mkdir ../../data/reads/$reads_path/breakpoint_positions
-	mkdir ../../data/reads/$reads_path/fasta_chunks
-	mkdir ../../data/reads/two_mers/$reads_path
+	mkdir ../data/reads/$reads_path/breakpoint_positions
+	mkdir ../data/average_levdist/$reads_path
+	mkdir ../../data/kmertone/$reads_path/breakpoints
 
 	for var in {1..22}
 	do
-	    mkdir ../../data/reads/$reads_path/breakpoint_positions/chr$var
+	    mkdir ../data/reads/$reads_path/breakpoint_positions/chr$var
 	done
 
-	# align reads to reference sequence 
+	# align reads to reference sequence
 	for var in {1..22}
 	do
-		echo "Splitting fasta file into chunks of 1M lines..."
-		awk -v size=1000000 -v pre=chunks -v pad=1 '/^>/{n++;if(n%size==1){close(f);f=sprintf("%s.%0"pad"d",pre,n)}}{print>>f}' ../../data/reads/$reads_path/chr$var.fasta
-		echo "Fasta file split!"
-		mv chunks* ../../data/reads/$reads_path/fasta_chunks/
-
-		for ind in 1 2
+	  echo "Starting read alignment for chromosome $var..."
+	  
+		fasta_lines="$(zgrep -Ec ">" ../data/reads/$reads_path/chr$var.fasta.gz)"
+		ind=$(((($fasta_lines+$interval-1)/$interval)-1))
+		
+		for (( i=0; i<=$ind; i++ )) 
 		do
-			echo "Running python script..."
-			python3 ReadsAligner.py $var $ind $ref_path $reads_path $my_path
+			echo "Running read alignment script iteration $i of $ind..."
+			Rscript ../lib/ReadsAligner.R $var $i $ref_path $reads_path $my_path $cores $fasta_lines $interval
 		done
-
-		# remove split fasta files
-		rm ../../data/reads/$reads_path/fasta_chunks/*
-		echo "Job done with chr$var"
+		
 	done
-
+	
 	# obtain average levenshtein distance for all sequences
-	mkdir ../../figures/$reads_path/
+	mkdir ../figures/$reads_path/
 	echo "Calculating levenshtein distances..."
-	Rscript ../lib/LevenDistCalc.R $reads_path $my_path
+	Rscript ../lib/LevenDistCalc.R $reads_path $my_path $cores
 	echo "Calculated levenshtein distances!"
 
 	# obtain files of breakpoint locations and chromosome number for kmertone
 	echo "Obtaining breakpoint locations for kmertone..."
-	Rscript ../lib/Kmertone_BreakPointLocations.R $reads_path $my_path
+	Rscript ../lib/Kmertone_BreakPointLocations.R $reads_path $my_path $cores
 	echo "Breakpoint locations for kmertone obtained!"
-
-	# zip read files to save hard disk space
-	echo "Zipping raw reads files..."
-	gzip ../../data/reads/$reads_path/*
-	echo "Raw read files zipped!"
 done
