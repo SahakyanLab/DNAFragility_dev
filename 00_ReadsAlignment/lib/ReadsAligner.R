@@ -28,9 +28,6 @@ ref.seq.original <- readDNAStringSet(filepath = paste0("../../data/ref/", ref.pa
 
 # load read sequences
 to.skip <- seq(from = interval+1, to = fasta.lines, by = interval+1) 
-to.end <- seq(from = interval, to = fasta.lines, by = interval+1) 
-to.end <- to.end[-1]
-to.end <- c(to.end, tail(to.end, n = 1)+interval)
 
 if(ind == 0){
   reads <- fasta.index(paste0("../data/reads/", reads.path, "/chr", chromosome.nr, ".fasta.gz"),
@@ -39,7 +36,7 @@ if(ind == 0){
 } else {
   reads <- fasta.index(paste0("../data/reads/", reads.path, "/chr", chromosome.nr, ".fasta.gz"),
                        skip = to.skip[ind], 
-                       nrec = to.end[ind])
+                       nrec = interval)
 }
 reads <- readDNAStringSet(reads)
 

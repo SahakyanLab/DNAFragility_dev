@@ -2,13 +2,12 @@
 
 my_path="Documents/DPhil/SonicBreaks_dev/00_ReadsAlignment/scripts/"
 cores=4
-interval=3000000
+interval=5000000
 
 for exp_num in 1
 do
 	reads_path="Simons_exp_${exp_num}"
 	ref_path="Simons_exp"
-	two_mer_ref="Simons_exp_ref"
 
 	# create directories to save files
 	mkdir ../data/reads/$reads_path/breakpoint_positions
