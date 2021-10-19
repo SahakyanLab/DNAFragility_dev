@@ -47,7 +47,7 @@ read.length <- width(reads)
 read.names <- names(reads)
 read.start.pos <- str_extract(string = read.names, pattern = "(?<=pos=).*(?= mapq)")
 read.start.pos <- as.numeric(read.start.pos)
-read.end.pos <- read.start.pos+read.length
+read.end.pos <- read.start.pos+read.length-1
 
 # get reverse complement of reads
 reads.revcomp <- reverseComplement(reads)
@@ -56,7 +56,7 @@ reads <- paste(reads)
 
 # get substrings of reference sequence
 mat <- matrix(c(read.start.pos, read.end.pos), ncol = 2)
-ref.seq <- str_sub(string = ref.seq.original, start = mat[,1], end = mat[,2]-1)
+ref.seq <- str_sub(string = ref.seq.original, start = mat[,1], end = mat[,2])
 
 lev.dist <- pbsapply(1:length(reads), function(i){
   return(list(Levenshtein(seq1 = reads[i], seq2 = ref.seq[i]),
