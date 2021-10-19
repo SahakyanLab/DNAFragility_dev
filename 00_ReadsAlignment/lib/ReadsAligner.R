@@ -78,7 +78,7 @@ minus.strand <- reads.revcomp[which.minus.strand]
 # concatenate best reads
 read <- vector(mode = "character", length = length(best.align))
 read[which.plus.strand] <- reads[which.plus.strand]
-read[which.minus.strand] <- reads[which.minus.strand]
+read[which.minus.strand] <- reads.revcomp[which.minus.strand]
 
 # align first 2 nucleotides of read against reference sequence
 # plus strand
