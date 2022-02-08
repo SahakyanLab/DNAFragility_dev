@@ -1,4 +1,8 @@
-setwd("/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/scripts/ReadsAlignment/")
+my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/00_ReadsAlignment/scripts/"
+ref.path="Simons_exp"
+reads.path="00-Ultrasonication/Simons_exp_1"
+chromosome="chr1"
+setwd(paste0(my.path, "../lib/"))
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyverse))
@@ -10,24 +14,38 @@ suppressPackageStartupMessages(library(gtools))
 
 #-----------------------------
 # load data sets
-chromosome = "chr1"
+files <- list.files(path = paste0("../data/reads/", reads.path, 
+                    "/breakpoint_positions/",chromosome,"/"),
+                    pattern = "alignment_file")
 
-files <- list.files(path = paste0("../../data/reads/Simons_exp_1/breakpoint_positions/",chromosome,"/"))
+# sort files
+files <- str_sort(files, numeric = TRUE)
 
 tables <- lapply(files, function(x){
-  fread(paste0("../../data/reads/Simons_exp_1/breakpoint_positions/",chromosome,"/", x), 
-        sep = ",", header = TRUE)
+  fread(paste0("../data/reads/", reads.path, 
+        "/breakpoint_positions/",chromosome,"/", x), 
+        header = TRUE, showProgress = TRUE)
 })
 
+# concatenate files and change class to numeric
 df <- do.call(rbind , tables) %>% 
-  as_tibble() %>%
-  rename(start.pos = bp_start_pos,
-         lev.dist  = lev_dist) %>%
+  rename_with(~c("start.pos", "lev.dist", "freq")) %>% 
   mutate(end.pos = start.pos+1) %>%
   relocate(end.pos, .after = start.pos) %>%
-  mutate(across(everything(), as.numeric)) %>%
   drop_na()
 
+# convert any non-integer columns to integers
+df <- df %>% 
+  mutate(across(where(is.character), as.numeric)) %>%
+  suppressWarnings()
+
+# remove any NAs
+df <- df %>%
+  drop_na()
+
+##############################
+# ---- helper functions ---- #
+##############################
 group.by.neighbour <- function(tib){
   # Extract boolean values and cleans NA
   group.booleans <- paste(as.integer(tib$in.group), collapse = "")  
@@ -55,17 +73,19 @@ frequency.sd <- function(tib, Mean){
   sqrt(sum((tib$Diff-Mean)**2*tib$freq)/(sum(tib$freq)-1)) %>%
     suppressMessages()
 }
+##############################
 
 # save bottom ~95% of the levenshtein distance score
 # import average lev dist
-lev.dist.df <- read.table(file = "../../data/two_mers/Simons_exp_1/AvgLevenshteinDistance.csv",
-                          sep = ",",header = TRUE) %>% as_tibble()
+lev.dist.df <- fread(paste0("../../00_ReadsAlignment/data/average_levdist/", 
+                            reads.path, "/AvgLevenshteinDistance.csv"),
+                    sep = ",", header = TRUE) %>% as_tibble()
 
 df <- df %>%
-  filter(lev.dist < mean(lev.dist.df$SD2))
+  filter(lev.dist < mean(lev.dist.df$SD1))
 
 # double check for any NAs
-which(is.na(df$start.pos))
+which(is.na(df))
 
 # group adjacent breakpoint locations together
 # group.id column will group together the breakpoints within gap.length
@@ -82,48 +102,48 @@ df.gaps <- function(gap.length = 1){
 gap.length = 1
 df.gaps.run <- df.gaps(gap.length = gap.length)
 
-if(gap.length == 1){
-  # frequency of adjacent breakpoint islands; gaps of length 1
-  bp.freq <- df.gaps.run %>%
-    group_by(group.id) %>%
-    summarise(Diff = length(group.id)) %>%
-    group_by(Diff) %>%
-    summarise(freq = sum(Diff))
-} else {
-  # frequency of adjacent breakpoint islands; gaps of length > 1
-  bp.freq <- df.gaps.run %>%
-    group_by(group.id) %>%
-    summarise(Diff.prelim = sum(diff(start.pos))) %>%
-    mutate(Diff = ifelse(Diff.prelim == 0, 1, Diff.prelim)) %>%
-    select(-Diff.prelim) %>%
-    group_by(Diff) %>%
-    summarise(freq = n()) 
-}
+# if(gap.length == 1){
+#   # frequency of adjacent breakpoint islands; gaps of length 1
+#   bp.freq <- df.gaps.run %>%
+#     group_by(group.id) %>%
+#     summarise(Diff = length(group.id)) %>%
+#     group_by(Diff) %>%
+#     summarise(freq = sum(Diff))
+# } else {
+#   # frequency of adjacent breakpoint islands; gaps of length > 1
+#   bp.freq <- df.gaps.run %>%
+#     group_by(group.id) %>%
+#     summarise(Diff.prelim = sum(diff(start.pos))) %>%
+#     mutate(Diff = ifelse(Diff.prelim == 0, 1, Diff.prelim)) %>%
+#     select(-Diff.prelim) %>%
+#     group_by(Diff) %>%
+#     summarise(freq = n()) 
+# }
 
-# frequency distribution of length of consecutive breakpoints
-bp.freq
-bp.freq.plot <- bp.freq %>%
-  filter(Diff <= 10) %>%
-  ggplot(aes(Diff, freq)) +
-  geom_bar(stat = "identity", fill = "#364f6b") +
-  geom_text(aes(label = freq),
-            position = position_dodge(width = 0.9), vjust = -0.3) +
-  scale_x_continuous(breaks = 1:10,
-                     labels = as.character(1:10)) +
-  labs(x = "Length of Consecutive Breakpoints",
-       y = "Frequency",
-       title = paste0("Consecutive Breakpoints with Gap Length of: ", gap.length,"\n",
-                      "Mean:    ", round(frequency.mean(bp.freq), 
-                                         digits = 3),"\n",
-                      "St. Dev: ", round(frequency.sd(bp.freq, 
-                                                      frequency.mean(bp.freq)),
-                                         digits = 3))) 
+# # frequency distribution of length of consecutive breakpoints
+# bp.freq
+# bp.freq.plot <- bp.freq %>%
+#   filter(Diff <= 10) %>%
+#   ggplot(aes(Diff, freq)) +
+#   geom_bar(stat = "identity", fill = "#364f6b") +
+#   geom_text(aes(label = freq),
+#             position = position_dodge(width = 0.9), vjust = -0.3) +
+#   scale_x_continuous(breaks = 1:10,
+#                      labels = as.character(1:10)) +
+#   labs(x = "Length of Consecutive Breakpoints",
+#        y = "Frequency",
+#        title = paste0("Consecutive Breakpoints with Gap Length of: ", gap.length,"\n",
+#                       "Mean:    ", round(frequency.mean(bp.freq), 
+#                                          digits = 3),"\n",
+#                       "St. Dev: ", round(frequency.sd(bp.freq, 
+#                                                       frequency.mean(bp.freq)),
+#                                          digits = 3))) 
 
-ggsave(paste0("../../figures/RawReadsIllumina/chr1/ReadDistribution_ConsecLength_",
-              gap.length, ".pdf"),
-       plot = bp.freq.plot,
-       width = 12, 
-       height = 8)
+# ggsave(paste0("../figures/00-Ultrasonication/Simons_exp_1/ReadDistribution_ConsecLength_",
+#               gap.length, ".pdf"),
+#        plot = bp.freq.plot,
+#        width = 12, 
+#        height = 8)
 
 # frequency of the length of the gaps in-between apparent breakpoint islands
 gaps.between.bp.freq <- df.gaps.run %>%
@@ -135,12 +155,12 @@ gaps.between.bp.freq <- df.gaps.run %>%
   ungroup() %>%
   mutate(Diff = lead(start.pos)-end.pos)
 
-gaps.between.bp.freq <- gaps.between.bp.freq %>%
-  group_by(Diff) %>%
-  summarise(freq = n()) %>%
-  na.omit() %>%
-  filter(Diff > 0) %>%
-  arrange(desc(freq)) 
+# gaps.between.bp.freq <- gaps.between.bp.freq %>%
+#   group_by(Diff) %>%
+#   summarise(freq = n()) %>%
+#   na.omit() %>%
+#   filter(Diff > 0) %>%
+#   arrange(desc(freq)) 
 
 # length of gaps between apparent breakpoint islands
 gaps.between.bp.freq.plot <- gaps.between.bp.freq %>%
@@ -156,7 +176,8 @@ gaps.between.bp.freq.plot <- gaps.between.bp.freq %>%
                                                       frequency.mean(gaps.between.bp.freq)),
                                          digits = 3)))
 
-ggsave(paste0("../figures/RawReadsIllumina/chr1/ReadDistribution_GapBetweenBreakpointIslands.pdf"),
+ggsave(paste0("../figures/00-Ultrasonication/Simons_exp_1/ReadDistribution_GapBetweenBreakpointIslands_ConsecLength_",
+              gap.length, ".pdf"),
        plot = gaps.between.bp.freq.plot,
        width = 12, 
        height = 8)

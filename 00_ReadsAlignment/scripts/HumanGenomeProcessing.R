@@ -1,4 +1,4 @@
-setwd("/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/scripts/ReadsAlignment/")
+setwd("/Volumes/Paddy_5TB/ProjectBoard_Patrick/03-Raw_Reads_Analysis/00_ReadsAlignment/scripts/")
 suppressPackageStartupMessages(library(Biostrings))
 
 # big files need more time to download
