@@ -1,3 +1,6 @@
+// Enable C++11 via this plugin (Rcpp 0.10.3 or later)
+// [[Rcpp::plugins("cpp11")]]
+
 #include <cstdio>
 
 // edlib functions dependency
