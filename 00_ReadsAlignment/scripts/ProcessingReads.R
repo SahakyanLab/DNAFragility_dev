@@ -10,16 +10,6 @@ fasta.lines <- as.numeric(args[7])
 interval <- as.numeric(args[8])
 BAM <- as.logical(as.character(args[9]))
 alignment.strands <- as.character(args[10])
-
-my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/00_ReadsAlignment/scripts/"
-breakpoint.experiment="03-Ancient_DNA/Chagyrskaya_Neandertal"
-experiment.num=1
-chromosome=1
-ref.path="Simons_exp"
-ind=0
-fasta.lines=1000
-BAM=FALSE
-alignment.strands="both"
 setwd(my.path)
 
 # load dependencies
@@ -41,8 +31,7 @@ if(ref.path == "1000_Genomes_Pilot"){
                                                   "/chr", chromosome, ".fasta.gz"))
 }
 
-for(i in 1:ind){
-  # measure execution time 
+for(i in 0:(ind-1)){
   start.time <- Sys.time()
 
   output <- AlignReads(
@@ -65,7 +54,6 @@ for(i in 1:ind){
   #     "file_", ind,".txt"))
   #   )
 
-  # measure execution time
   end.time   <- Sys.time()
   time.diff  <- signif(end.time-start.time, 3)
   time.units <- attr(time.diff, "units")
