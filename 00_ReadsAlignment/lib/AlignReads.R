@@ -1,33 +1,32 @@
 #############################################################################################
-AlignReads <- function(
-  chromosome.nr,
-  ind,
-  fasta.lines,
-  reads.path,
-  interval,
-  BAM = FALSE,
-  alignment.strands = "both"
-  ){
+AlignReads <- function(chromosome.nr, ind, fasta.lines, breakpoint.experiment,
+                       interval, BAM = FALSE, alignment.strands = "both"){
 
   # check input classes
   if(!is.numeric(chromosome.nr)) stop("chromosome.nr needs to be a numeric value.")
   if(!is.numeric(ind)) stop("ind needs to be a numeric value.")
   if(!is.numeric(fasta.lines)) stop("fasta.lines needs to be a numeric value.")
-  if(!is.character(reads.path)) stop("reads.path needs to be a character vector.")
+  if(!is.character(breakpoint.experiment)) stop("breakpoint.experiment needs to be a character vector.")
   if(!is.numeric(interval)) stop("interval needs to be a numeric value.")
   if(!is.logical(BAM)) stop("BAM needs to be TRUE/FALSE logic.")
   if(!is.character(alignment.strands)) stop("alignment.strands needs to be a character vector.")
 
-  if(ind == 0){
-    reads <- fasta.index(paste0("../data/reads/", reads.path, "/chr", chromosome.nr, ".fasta.gz"),
-                        skip = 0, 
-                        nrec = interval)
+  if(ind == 0){ 
+    reads <- fasta.index(
+      paste0("../../Raw_data/", breakpoint.experiment, 
+             "/chr", chromosome.nr, ".fasta.gz"),
+      skip = 0, 
+      nrec = interval
+    )
   } else {
     # load read sequences
     to.skip <- seq(from = interval+1, to = fasta.lines, by = interval+1) 
-    reads <- fasta.index(paste0("../data/reads/", reads.path, "/chr", chromosome.nr, ".fasta.gz"),
-                        skip = to.skip[ind], 
-                        nrec = interval)
+    reads <- fasta.index(
+      paste0("../../Raw_data/", breakpoint.experiment, 
+             "/chr", chromosome.nr, ".fasta.gz"),
+      skip = to.skip[ind], 
+      nrec = interval
+    )
   } 
   reads <- readDNAStringSet(reads)
 
@@ -60,7 +59,41 @@ AlignReads <- function(
     read.start.pos <- sapply(str.extract, "[[", 1)
   } else {
     # raw sequencing files in fasta format
-    read.start.pos <- str_extract(string = read.names, pattern = "(?<=pos=).*(?= mapq)")
+    # temp for when read.names equals
+    # "60001"
+    if(str_detect(read.names[1], "^[:digit:]+$")){
+      read.start.pos <- read.names
+    } else {
+      # temp for when read.names equals
+      # "ERR1025627.55/2 primary ref=chr1 pos=10001 mapq=254"
+      temp <- str_detect(
+        string = read.names[1], 
+        pattern = "pos"
+      )
+      
+      if(temp){
+        read.start.pos <- str_extract(
+          string = read.names, 
+          pattern = "(?<=pos=).*(?= mapq)"
+        )
+      } else {
+        # temp for when read.names equals
+        # "60005_+"
+        temp <- str_replace_all(
+          string = read.names[1], 
+          pattern = "[^[:digit:]]", 
+          replacement = ""
+        )
+        
+        if(str_detect(temp, "^[:digit:]+$")){
+          read.start.pos <- str_replace_all(
+            string = read.names, 
+            pattern = "[^[:digit:]]", 
+            replacement = ""
+          )
+        }
+      }
+    }
   }
 
   read.start.pos <- as.integer(read.start.pos)
@@ -75,7 +108,11 @@ AlignReads <- function(
   reads <- paste(reads)
 
   # get substrings of reference sequence
-  ref.seq = str_sub(string = ref.seq.original, start = read.start.pos, end = read.end.pos)
+  ref.seq = str_sub(
+    string = ref.seq.original, 
+    start = read.start.pos, 
+    end = read.end.pos
+  )
 
   if(!BAM | (alignment.strands == "both")){
     outMatrix <- matrix(
@@ -128,7 +165,9 @@ AlignReads <- function(
     )
   } else {
     df <- data.table(
-      bp.start.pos = ifelse(alignment.strands == "plus", read.start.pos, read.end.pos),
+      bp.start.pos = ifelse(alignment.strands == "plus", 
+                            read.start.pos, 
+                            read.end.pos),
       lev.dist = lev.dist
     )
     

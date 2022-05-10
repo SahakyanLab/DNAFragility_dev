@@ -2,8 +2,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 my.path <- as.character(args[1])
 breakpoint.experiment <- as.character(args[2])
-experiment.num <- as.character(args[3])
-kmer <- as.integer(args[4])
+kmer <- as.integer(args[3])
 setwd(paste0(my.path, "../lib/"))
 
 # load dependencies
@@ -12,15 +11,14 @@ suppressPackageStartupMessages(library(data.table))
 
 # load files
 files <- list.files(
-  path = paste0("../data/kmertone/", breakpoint.experiment, "_", experiment.num), 
+  path = paste0("../data/kmertone/", breakpoint.experiment), 
   pattern = paste0("score_", kmer)
 )
 files <- str_sort(files, numeric = TRUE)
 
 # import files
 data.set <- fread(
-  file = paste0("../data/kmertone/", breakpoint.experiment, 
-                "_", experiment.num, "/", files), 
+  file = paste0("../data/kmertone/", breakpoint.experiment, "/", files), 
   sep = ",",
   header = TRUE,
   showProgress = FALSE
@@ -38,7 +36,8 @@ data.set <- data.table(
 
 fwrite(
   data.set,
-  file = paste0("../data/weight_factor/", breakpoint.experiment, 
-                "_", experiment.num, "/kmer_", kmer, ".csv"), 
+  file = paste0("../data/weight_factor/", 
+                breakpoint.experiment, 
+                "/kmer_", kmer, ".csv"), 
   row.names = FALSE
 )

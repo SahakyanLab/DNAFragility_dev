@@ -2,7 +2,7 @@ CalcKmerFreq <- function(ind, k){
   dfcopy <- copy(df)
   dfcopy[, `:=`(start.pos = start.pos + ind)]
   
-  if ((k %% 2) == 0) {
+  if((k %% 2) == 0){
     ending.pos = ceiling((k-1)/2)
     starting.pos = (k-1)-ending.pos
   }
@@ -13,7 +13,11 @@ CalcKmerFreq <- function(ind, k){
 
   # extract k-meric counts and relative frequencies
   dfcopy[, `:=`(fwd = str_sub(string = ref.seq, start = start, end = end))]
-  dfcopy[, c("start", "end") := NULL]
+
+  if("-" %in% unique(dfcopy$strand)){
+    dfcopy[strand == "-", fwd := paste(reverseComplement(DNAStringSet(fwd)))]
+  }
+
   dfcopy <- dfcopy[, .(n = .N), by = .(fwd)][!str_detect(string = fwd, pattern = "N")]
   
   # account for strand symmetry

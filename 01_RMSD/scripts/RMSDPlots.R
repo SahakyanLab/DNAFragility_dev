@@ -2,20 +2,28 @@
 args <- commandArgs(trailingOnly = TRUE)
 my.path <- as.character(args[1])
 breakpoint.experiment <- as.character(args[2])
-experiment.num <- as.character(args[3])
-chromosome <- as.character(args[4])
+chromosome <- as.character(args[3])
+category <- as.character(args[4])
+
+
+# my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/01_RMSD/scripts/"
+# breakpoint.experiment="24-cfDNA/Breast_cancer_Invasive_infiltratingductal/"
+# breakpoint.experiment="25-RAFT/DSBs_in_HEK293T/"
+# chromosome=1
 setwd(my.path)
 
-suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(ggplot2))
-source("../lib/CalcCI.R")
+
 source("../lib/FitGMM.R")
+source("../lib/IntegralFunctions.R")
+source("../lib/CalcCI.R")
 source("../lib/MakePlot.R")
 
 # load data sets
 files <- list.files(
-  path = paste0("../data/", breakpoint.experiment, "_", experiment.num),
+  path = paste0("../data/", breakpoint.experiment),
   pattern = "rmsd_kmer_"
 )
 file.name <- paste0("kmer_", seq(from = 2, to = 10, by = 2))
@@ -23,13 +31,17 @@ files <- str_sort(files, numeric = TRUE)
 
 data.sets <- lapply(1:length(files), function(x){
   out <- readRDS(
-    file = paste0("../data/", breakpoint.experiment, "_", experiment.num, "/", files[x])
+    file = paste0("../data/", breakpoint.experiment,"/", files[x])
   )
 
+  limits <- length(out)/2-1
   out <- as_tibble(out) %>% 
-    mutate(kmer = as.factor(file.name[x]), 
-           x = -300.5:(length(out)-300.5-1)) %>% 
-    rename(y = value)
+    mutate(
+      kmer = as.factor(file.name[x]), 
+      x = -limits:(length(out)-limits-1)
+    ) %>% 
+    dplyr::rename(y = value)
+  
   return(out)
 })
 
@@ -47,30 +59,149 @@ plots <- data.sets %>%
   )
 
 ggsave(
-  filename = paste0("../figures/", breakpoint.experiment, "_", experiment.num,
+  filename = paste0("../figures/", breakpoint.experiment, 
                     "/chr", chromosome, "_sidebyside_RMSD.pdf"),
   plot = plots, 
   height = 7, width = 7
 )
 
 # GMM plots
-data.sets <- data.sets %>% 
+data.sets <- data.sets %>%
   mutate(across(where(is.factor), as.character)) %>% 
-  filter(kmer != "kmer_2" & kmer != "kmer_4")
+  filter(kmer != "kmer_2" & kmer != "kmer_10")
 
 p <- vector(mode = "list", length = 3)
-unique.k <- unique(data.sets$kmer)
 
-for(k in 1:length(unique.k)){
-  dat <- data.sets %>% filter(kmer == unique.k[k])
-  curvefits <- FitGMM(dat = dat, ind = unique.k[k], sigma3 = 3)
-  p[[k]] <- MakePlot(dat = dat, k = unique.k[k], curve.vals = curvefits)
+####################################################
+# source("../lib/FitGMM.R")
+# source("../lib/IntegralFunctions.R")
+# source("../lib/CalcCI.R")
+# source("../lib/MakePlot.R")
+# fits <- c("kmer_4" = 3, "kmer_6" = 3, "kmer_8" = 3)
+# k=3
+
+# rm(output)
+# rm(output.plot)
+# rm(curvefits)
+
+# dat <- data.sets %>% filter(kmer == names(fits[k]))
+
+# dat=dat; ind = names(fits[k]); nr.of.curves=fits[k]
+# C.value=1; sigma3=2
+
+# curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = unname(fits[k]))
+
+# # dat=dat; k=names(fit[k]); curve.vals=curvefits; nr.of.curves=fits[k]
+
+# output <- MakePlot(dat = dat, k = names(fits[k]), 
+#                     curve.vals = curvefits, 
+#                     nr.of.curves = fits[k])
+# output.plot <- output[[1]]
+# output.plot
+
+fits <- c("kmer_4" = 3, "kmer_6" = 3, "kmer_8" = 3)
+
+for(k in 1:length(fits)){
+  print(k)
+  dat <- data.sets %>% filter(kmer == names(fits[k]))
+  curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = fits[k])
+
+  if(class(curvefits[length(curvefits)][[1]]) != "nls"){
+    fits[k] <- 2
+    curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = fits[k])
+
+    if(class(curvefits[length(curvefits)][[1]]) != "nls"){
+      fits[k] <- 1
+      curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = fits[k])
+    }
+
+    if(all(is.na(unlist(curvefits[length(curvefits)-2])))){
+      p <- p[1:(length(p)-1)]
+      break
+    }
+  }
+
+  output <- MakePlot(dat = dat, k = names(fits[k]), 
+                     curve.vals = curvefits, 
+                     nr.of.curves = fits[k])
+  output.plot <- output[[1]]
+
+  if(class(output.plot)[1] == "numeric"){
+    fits[k] <- 2
+    curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = fits[k])
+
+    if(class(curvefits[length(curvefits)][[1]]) != "nls" & names(fits[k]) != "kmer_8"){
+      fits[k] <- 1
+      curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = fits[k])
+    }
+
+    if(all(is.na(unlist(curvefits[length(curvefits)-2])))){
+      p <- p[1:(length(p)-1)]
+      break
+    }
+
+    output <- MakePlot(dat = dat, k = names(fits[k]), 
+                       curve.vals = curvefits, 
+                       nr.of.curves = fits[k])
+    output.plot <- output[[1]]
+  } else {
+    p[[k]] <- output.plot
+  }
+
+  # percent contribution of each gaussian curve towards breakage
+  df <- as_tibble(curvefits[length(curvefits)-1][[1]])
+  df[1,] <- df[1,]*100
+
+  # range of influence based on 95 percent confidence intervals
+  output.CIlst <- output[[2]]
+  curves <- output.CIlst[seq(2, length(output.CIlst), 2)]-
+            output.CIlst[seq(1, length(output.CIlst), 2)]
+
+  # sd of curves
+  SD <- sapply(1:(length(curvefits)-2), function(x){
+    vals <- curvefits[[x]]
+
+    left <- t.test(vals, conf.level = 0.68)$conf.int[1]
+    right <- t.test(vals, conf.level = 0.68)$conf.int[2]
+
+    lower.bound <- which(vals > left)[1]
+    upper.bound <- which(vals > right)
+    upper.bound <- upper.bound[length(upper.bound)]
+
+    return((upper.bound-lower.bound)/2)
+  })
+
+  SD <- c(SD, rep(NA_real_, 3-length(SD)))
+
+  # peak intensity of each gaussian curve
+  peak.intensity <- sapply(1:fits[k], function(x){
+    max(curvefits[[x]])
+  })
+
+  peak.intensity <- c(peak.intensity, rep(NA_real_, 3-length(peak.intensity)))
+
+  # combine results
+  df <- rbind(df, curves, SD, peak.intensity)
+  df <- df %>% 
+    mutate(
+      exp = breakpoint.experiment,
+      category = category,
+      rowid = c("contribution", "ranges", "SD", "peak.intensty"), 
+      .before = 1,
+    )
+
+  write.csv(
+    x = df,
+    file = paste0("../data/", breakpoint.experiment, "/key_stats_", names(fits[k]), ".csv"),
+    row.names = FALSE
+  )
+
   # if(k == 1) print(p) # temp. avoid an unsolved ggplot bug
 }
 
 ggsave(
-  filename = paste0("../figures/", breakpoint.experiment, "_", experiment.num,
+  filename = paste0("../figures/", breakpoint.experiment, 
                     "/chr", chromosome, "_RMSD_all_GMMFit.pdf"),
   plot = cowplot::plot_grid(plotlist = p, axis = "b", ncol = 1), 
   height = 15, width = 7
-)
+) 

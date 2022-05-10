@@ -5,7 +5,6 @@ cores=2
 breakpoint_type="00-Ultrasonication"
 exp="Simons_exp"
 breakpoint_experiment="${breakpoint_type}/${exp}"
-exp_num=1
 ref_path="Simons_exp"
 chromosome=1
 lower_limit=1

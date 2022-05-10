@@ -1,3 +1,14 @@
+# read arguments from job submission
+args <- commandArgs(trailingOnly = TRUE)
+my.path <- as.character(args[1])
+breakpoint.experiment <- as.character(args[2])
+cores <- as.numeric(args[3])
+
+# my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/00_ReadsAlignment/scripts/"
+# breakpoint.experiment="00-Ultrasonication/Simons_exp_25"
+# cores=1
+setwd(paste0(my.path, "../lib"))
+
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(pbapply))
@@ -5,28 +16,19 @@ suppressPackageStartupMessages(library(stringr))
 pbo = pboptions(type="txt")
 # data.table::setDTthreads(threads = 1)
 
-# read arguments from job submission
-args <- commandArgs(trailingOnly = TRUE)
-my.path <- as.character(args[1])
-breakpoint.experiment <- as.character(args[2])
-experiment.num <- as.character(args[3])
-cores <- as.numeric(args[4])
-setwd(paste0(my.path, "../lib"))
-
 # ---------------
 # obtain average levenshtein distance for all chromosomes
 lev.dist <- pblapply(1:22, function(i){  
   files <- list.files(
-    path = paste0("../data/reads/", 
-                  breakpoint.experiment, "_", experiment.num,
-                  "/breakpoint_positions/chr", i, "/"),
-    pattern = "alignment_file")
+    path = paste0("../../Raw_data/", breakpoint.experiment, 
+                  "/breakpoint_positions/chr", i),
+    pattern = "alignment_file"
+  )
   files <- str_sort(files, numeric = TRUE)
   
   tables <- lapply(files, function(x){
     fread(
-      paste0("../data/reads/", 
-             breakpoint.experiment, "_", experiment.num,
+      paste0("../../Raw_data/", breakpoint.experiment, 
              "/breakpoint_positions/chr", i, "/", x), 
       sep = ",", 
       header = TRUE,
@@ -91,12 +93,12 @@ lev.plot <- ggplot(df) +
     title = "Average Levenshtein Distance plotted as Mean + 1 St.Dev", 
     subtitle = paste0("Overall Average: ", signif(mean(df$Mean), 3)))
 
-ggsave(filename = paste0("../figures/", breakpoint.experiment, "_", 
-                         experiment.num, "/AvgLevenshteinDistance.pdf"),
-       plot = lev.plot)
+ggsave(filename = paste0("../figures/", breakpoint.experiment, 
+                        "/AvgLevenshteinDistance.pdf"),
+      plot = lev.plot)
 
 # save lev dist 
 fwrite(x = df, 
-       file = paste0("../data/average_levdist/", breakpoint.experiment, 
-                     "_", experiment.num, "/AvgLevenshteinDistance.csv"), 
+       file = paste0("../../Raw_data/", breakpoint.experiment, 
+                     "/average_levdist/AvgLevenshteinDistance.csv"), 
        row.names = FALSE)

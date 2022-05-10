@@ -1,6 +1,5 @@
 LoadKmertoneData <- function(
   breakpoint.experiment, 
-  experiment.num,
   k, 
   kmer.table,
   kmer.ref.table,
@@ -12,14 +11,12 @@ LoadKmertoneData <- function(
   
   # load files
   files <- list.files(
-    path = paste0("../data/kmertone/", breakpoint.experiment,  
-                  "_", experiment.num, "/"),
+    path = paste0("../data/kmertone/", breakpoint.experiment, "/"),
     pattern = paste0("score_", k)
   )
   
   data.set <- fread(
-    file = paste0("../data/kmertone/", breakpoint.experiment, 
-                  "_", experiment.num, "/", files),
+    file = paste0("../data/kmertone/", breakpoint.experiment, "/", files),
     sep = ",", header = TRUE, showProgress = FALSE,
     select = c("case", "control", "z")
   )

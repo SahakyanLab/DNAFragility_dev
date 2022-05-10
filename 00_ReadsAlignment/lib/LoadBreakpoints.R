@@ -1,20 +1,24 @@
 LoadBreakpoints <- function(
-  path.to.origin = "./", 
   experiment.folder, 
-  experiment, 
   chromosome,
   select.col = ""
   ){
-  fetch.file <- paste0(path.to.origin, "00_ReadsAlignment/data/reads/",
-                       experiment.folder, "_", experiment,
-                       "/breakpoint_positions/chr", chromosome, ".csv")
+  fetch.file <- paste0(
+    "../../Raw_data/", experiment.folder,
+    "/breakpoint_positions/chr", 
+    chromosome, ".csv"
+  )
   
   # obtain breakpoints
+  if(nzchar(select.col)) {
+    columns = select.col
+  } else {
+    columns = NULL
+  }
+
   df <- fread(
-    file = fetch.file, 
-    sep = ",", 
-    header = TRUE, 
-    select = ifelse(nzchar(select.col), select.col, NULL),
+    file = fetch.file,
+    select = columns,
     showProgress = FALSE
   )
   

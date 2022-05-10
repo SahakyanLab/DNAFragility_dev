@@ -2,7 +2,6 @@
 args <- commandArgs(trailingOnly = TRUE)
 my.path <- as.character(args[1])
 breakpoint.experiment <- as.character(args[2])
-experiment.num <- as.character(args[3])
 setwd(paste0(my.path, "../lib"))
 
 suppressPackageStartupMessages(library(pbapply))
@@ -41,9 +40,8 @@ LoadChr <- function(seqname, bamFile, with.index){
   # save as fasta file
   writeXStringSet(
     x = sequences, 
-    filepath = paste0("../data/reads/", breakpoint.experiment, 
-                      "_", experiment.num, "/chr", 
-                      as.character(seqname), ".fasta.gz"), 
+    filepath = paste0("../../Raw_data/", breakpoint.experiment, 
+                      "/chr", as.character(seqname), ".fasta.gz"), 
     format = "fasta", 
     compress = TRUE
   )
@@ -51,24 +49,20 @@ LoadChr <- function(seqname, bamFile, with.index){
 
 # locate BAM file
 files <- list.files(
-  path = paste0("../data/reads/", breakpoint.experiment, 
-                "_", experiment.num),
+  path = paste0("../../Raw_data/", breakpoint.experiment),
   pattern = "*.bam"
 )
 files <- str_sort(files, numeric = TRUE)
 
 if(length(files) > 2){
   files <- list.files(
-    path = paste0("../data/reads/", breakpoint.experiment, 
-                  "_", experiment.num),
+    path = paste0("../../Raw_data/", breakpoint.experiment),
     pattern = "*.bam$"
   )
   files <- str_sort(files, numeric = TRUE)
   
   for(i in 1:length(files)){
-    bamFile <- BamFile(paste0("../data/reads/", 
-                              breakpoint.experiment, "_", 
-                              experiment.num, "/", files[i]))
+    bamFile <- BamFile(paste0("../../Raw_data/", breakpoint.experiment, "/", files[i]))
 
     bam <- LoadChr(seqname = i, bamFile = bamFile, with.index = TRUE)
   }
@@ -77,9 +71,7 @@ if(length(files) > 2){
   check.ind.exist <- str_extract(string = files, pattern = "\\.([[:alnum:]]+)$")
   with.index <- ifelse(".bai" %in% check.ind.exist, TRUE, FALSE)
 
-  bamFile <- BamFile(paste0("../data/reads/", 
-                            breakpoint.experiment, "_", 
-                            experiment.num, "/", files[1]))
+  bamFile <- BamFile(paste0("../../Raw_data/", breakpoint.experiment, "/", files[1]))
 
   seqnames <- 1:22
   bam <- pblapply(seqnames, LoadChr, bamFile, with.index)
