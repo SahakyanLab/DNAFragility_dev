@@ -25,37 +25,6 @@ source("../lib/GenerateKmerTable.R")
 source("../lib/LoadKmertoneData.R")
 source("../lib/LoopOverKmertoneData.R")
 
-# # ----------------
-# # helper functions
-# PlotKmerClustering <- function(to.cluster, action){
-#   if(k == 2) row.cluster.label.size=0.8
-#   if(k == 4) row.cluster.label.size=0.2
-#   if(k == 6) row.cluster.label.size=0.1
-#   if(k == 8) row.cluster.label.size=0.01
-
-#   df.dist <- dist(1 - to.cluster) %>% suppressWarnings()
-#   df.dendro <- as.dendrogram(hclust(df.dist, method = "complete"))
-#   transpose.df <- t(to.cluster)
-
-#   pdf(paste0("../figures/tracts_for_ml/", k, "-mer_", action, "-clustering.pdf"))
-#   heatmap.2(
-#     transpose.df,
-#     Rowv = FALSE,
-#     Colv = df.dendro,
-#     dendrogram = "col",
-#     revC = FALSE,
-#     trace = "none",
-#     density.info = "none",
-#     notecol = "black",
-#     cexRow = 0.8,
-#     cexCol = row.cluster.label.size,
-#     labRow = rownames(transpose.df),
-#     labCol = colnames(transpose.df)
-#   )
-#   plot.save <- dev.off()
-# }
-# # ----------------
-
 # kmer reference
 sample.kmer <- data.table(kmer = GenerateKmerTable(k, ref = FALSE))
 kmer.ref <- GenerateKmerTable(k, ref = TRUE)
@@ -66,29 +35,6 @@ all.files <- list.files(
   pattern = paste0("score_", k, " *"), 
   recursive = TRUE
 )
-
-# df <- tibble(
-#   breakpoint.experiment = str_extract(
-#     string = all.files, 
-#     pattern = ".+(?=_[:digit:]+/)")) %>% 
-#   group_by(breakpoint.experiment) %>% 
-#   summarise(ind = n())
-
-# results <- sapply(1:nrow(df), function(ind){
-#   upper.limit <- pull(df[ind, "ind"])
-
-#   out <- LoopOverKmertoneData(
-#     upper.limit=upper.limit,
-#     breakpoint.experiment=pull(df[ind, "breakpoint.experiment"]),
-#     action=action
-#   )
-
-#   if(upper.limit > 1){
-#     out <- as.matrix(rowMeans(out))
-#   }
-
-#   return(out)
-# })
 
 results <- sapply(all.files, function(file){
   out <- LoopOverKmertoneData(
@@ -114,9 +60,6 @@ rownames(results) <- kmer.ref$kmer
 if(any(!is.finite(rowSums(results)))){
   results <- results[is.finite(rowSums(results)), ]
 }
-
-# hiarchical clustering
-# PlotKmerClustering(to.cluster = results, action = action)
 
 df.heatmap <- as_tibble(results) %>% 
   mutate(kmer = rownames(results), .before = 1) %>% 

@@ -64,10 +64,6 @@ cols <- 200
 dir.create("../figures/seq_influence", showWarnings = FALSE)
 pdf(paste0("../figures/seq_influence/", k, "-mer-clustering.pdf"), height = 10, width = 8)
 
-# 95% confidence interval
-# t.test(df.hc)
-# CI <- t.test(df.hc)$conf.int
-
 Lower.bound <- mean(df.hc, na.rm = TRUE)-2*sd(df.hc, na.rm = TRUE)
 Upper.bound <- mean(df.hc, na.rm = TRUE)+2*sd(df.hc, na.rm = TRUE)
 

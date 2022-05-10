@@ -12,45 +12,8 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
   we[1] <- max(y)*y[1]
   we[length(we)] <- max(y)*y[length(y)]
 
-  # weightings towards origin of breakpoint
-  # we[1:50] <- 2
-  # we[(length(we)-50):length(we)] <- 2
-
   # error capture
   init.list <- vector(mode = "list", length = 4)
-
-  # error handling
-  # operation.cvalue <- function(C.value){
-  #   withRestarts(
-  #     tryCatch({
-  #       try.nls(C.value = C.value)
-  #     },
-  #     error = function(e){
-  #       invokeRestart("retry")
-  #     }),
-  #     retry = function(){
-  #       Coef.value <<- C.value+11
-  #       if(C.value > 1200) return(2)
-  #       operation.cvalue(C.value+11)
-  #     }
-  #   )
-  # }
-
-  # operation.sigma <- function(sigma3){
-  #   withRestarts(
-  #     tryCatch({
-  #       try.nls(sigma3 = sigma3)
-  #     },
-  #     error = function(e){
-  #       invokeRestart("retry")
-  #     }),
-  #     retry = function(){
-  #       sigma.value <<- sigma3+20
-  #       if(sigma3 >= 1000) return(2)
-  #       operation.sigma(sigma3+20)
-  #     }
-  #   )
-  # }
 
   if(nr.of.curves == 1){
     try.nls <- function(C.value, algo){

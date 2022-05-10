@@ -9,21 +9,6 @@ fasta.lines <- as.numeric(args[6])
 interval <- as.numeric(args[7])
 BAM <- as.logical(args[8])
 alignment.strands <- as.character(args[9])
-
-my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/00_ReadsAlignment/scripts/"
-breakpoint.experiment="01-Nebulization/1000_Genomes_exp_2"
-ref.path="1000_Genomes_exp"
-
-# breakpoint.experiment="00-Ultrasonication/Simons_exp_1"
-# ref.path="hs37d5"
-
-# chromosome=1
-# ind=0
-# fasta.lines=11308072
-# interval=1000
-# BAM=FALSE
-# alignment.strands="plus"
-
 setwd(my.path)
 
 # load dependencies

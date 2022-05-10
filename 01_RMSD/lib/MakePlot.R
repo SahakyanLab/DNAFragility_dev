@@ -25,10 +25,6 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
       fit.3.lower.bound, fit.3.upper.bound
     )
 
-    # if(any(check.if.too.many.curves.fitted > 270 | check.if.too.many.curves.fitted < -270)){
-    #   return(2)
-    # }
-
     CI.lst[5] <- fit.3.lower.bound
     CI.lst[6] <- fit.3.upper.bound
   }

@@ -4,12 +4,6 @@ my.path <- as.character(args[1])
 breakpoint.experiment <- as.character(args[2])
 chromosome <- as.character(args[3])
 category <- as.character(args[4])
-
-
-# my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/01_RMSD/scripts/"
-# breakpoint.experiment="24-cfDNA/Breast_cancer_Invasive_infiltratingductal/"
-# breakpoint.experiment="25-RAFT/DSBs_in_HEK293T/"
-# chromosome=1
 setwd(my.path)
 
 suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
@@ -71,33 +65,6 @@ data.sets <- data.sets %>%
   filter(kmer != "kmer_2" & kmer != "kmer_10")
 
 p <- vector(mode = "list", length = 3)
-
-####################################################
-# source("../lib/FitGMM.R")
-# source("../lib/IntegralFunctions.R")
-# source("../lib/CalcCI.R")
-# source("../lib/MakePlot.R")
-# fits <- c("kmer_4" = 3, "kmer_6" = 3, "kmer_8" = 3)
-# k=3
-
-# rm(output)
-# rm(output.plot)
-# rm(curvefits)
-
-# dat <- data.sets %>% filter(kmer == names(fits[k]))
-
-# dat=dat; ind = names(fits[k]); nr.of.curves=fits[k]
-# C.value=1; sigma3=2
-
-# curvefits <- FitGMM(dat = dat, ind = names(fits[k]), nr.of.curves = unname(fits[k]))
-
-# # dat=dat; k=names(fit[k]); curve.vals=curvefits; nr.of.curves=fits[k]
-
-# output <- MakePlot(dat = dat, k = names(fits[k]), 
-#                     curve.vals = curvefits, 
-#                     nr.of.curves = fits[k])
-# output.plot <- output[[1]]
-# output.plot
 
 fits <- c("kmer_4" = 3, "kmer_6" = 3, "kmer_8" = 3)
 
