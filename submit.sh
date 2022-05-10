@@ -12,16 +12,8 @@ nr_of_lines=$(wc -l < Raw_data/org_file.csv)
 
 if [ "${RUN_SCRIPT}" == "TRUE" ]
 then
-    # for ((i=2; i<=$nr_of_lines; i++))
-    # for ((i=2; i<=26; i++))
-    # for ((i=84; i<=108; i++))
-    # for ((i=32; i<=35; i++))
-    # do
-        i=28
-        # i=27
-        # i=37
-        # i=112
-        # i=117
+    for ((i=2; i<=$nr_of_lines; i++))
+    do
         breakpoint_type=$(awk -F, -v "row=$i" 'NR==row { print $1; exit }' Raw_data/org_file.csv)
         exp=$(awk -F, -v "row=$i" 'NR==row { print $2; exit }' Raw_data/org_file.csv)
         to_process=$(awk -F, -v "row=$i" 'NR==row { print $4; exit }' Raw_data/org_file.csv)
@@ -44,8 +36,7 @@ then
 
             if [[ ! -f $path_to_bp_files/*.csv ]]
             then
-                # if [ $nr_of_files -lt 22 ]
-                if [ $nr_of_files -lt 24 ]
+                if [ $nr_of_files -lt 22 ]
                 then
                     # Process files 
                     cd ./00_Preprocessing/scripts/
@@ -56,13 +47,13 @@ then
         else
             # align raw sequencing reads
             cd ./00_ReadsAlignment/scripts/
-            # bash script.sh $breakpoint_type $exp $ref_path $cores $interval $alignment_strands
+            bash script.sh $breakpoint_type $exp $ref_path $cores $interval $alignment_strands
             cd ../../
         fi
 
         # calculate sequence driven effects near breakpoints
         cd ./01_RMSD/scripts/
-        # bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category
+        bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category
         cd ../../
 
         # perform kmertone enrichment/depletion analysis
@@ -71,7 +62,7 @@ then
         cd ./02_Correlations/scripts/
         bash script.sh $breakpoint_type $exp $ref_path $cores $upper_limit $first_idx
         cd ../../
-    # done
+    done
 else 
     echo "Script did not run. Set RUN_SCRIPT=TRUE to run."
 fi
