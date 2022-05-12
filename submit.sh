@@ -9,6 +9,7 @@ chromosome=1
 upper_limit=1
 control="FALSE"
 auto_fit="TRUE"
+run_tracts="FALSE"
 nr_of_lines=$(wc -l < Raw_data/org_file.csv)
 
 if [ "${RUN_SCRIPT}" == "TRUE" ]
@@ -68,3 +69,10 @@ then
 else 
     echo "Script did not run. Set RUN_SCRIPT=TRUE to run."
 fi
+
+if [ "${run_tracts}" == "TRUE"]
+then
+    cd ./02_Correlations/scripts/
+    bash script_tracts.sh $action $auto_fit $upper_limit
+    cd ../../
+done
