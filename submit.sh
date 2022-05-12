@@ -8,13 +8,18 @@ interval=5000000
 chromosome=1
 upper_limit=1
 control="FALSE"
-auto_fit="TRUE"
-run_tracts="FALSE"
 nr_of_lines=$(wc -l < Raw_data/org_file.csv)
+
+auto_fit="FALSE"
+run_tracts="TRUE"
+action="z-score"
 
 if [ "${RUN_SCRIPT}" == "TRUE" ]
 then
-    for ((i=2; i<=$nr_of_lines; i++))
+    # for ((i=2; i<=$nr_of_lines; i++))
+    # for ((i=2; i<=36; i++))
+    # for ((i=85; i<=130; i++))
+    for i in 38 48 49
     do
         breakpoint_type=$(awk -F, -v "row=$i" 'NR==row { print $1; exit }' Raw_data/org_file.csv)
         exp=$(awk -F, -v "row=$i" 'NR==row { print $2; exit }' Raw_data/org_file.csv)
@@ -24,7 +29,11 @@ then
         ref_path=$(awk -F, -v col1=$breakpoint_path -v col2=$exp '$1==col1 || $2==col2 { print $3; exit }' Raw_data/org_file.csv)
         category=$(awk -F, -v "row=$i" 'NR==row { print $10; exit }' Raw_data/org_file.csv)
 
-        echo "Processing ${breakpoint_type}/${exp}..."
+        if [ "${run_tracts}" == "FALSE" ] 
+        then
+            echo "Processing ${breakpoint_type}/${exp}..."
+        fi
+
         mkdir -p Raw_data/${breakpoint_type}/${exp}/{breakpoint_positions,kmertone}
 
         if [ "${to_process}" == "TRUE" ] && [ "${dsb_map}" == "TRUE" ]
@@ -39,7 +48,6 @@ then
             if [[ ! -f $path_to_bp_files/*.csv ]]
             then
                 if [ $nr_of_files -lt 22 ]
-                # if [ $nr_of_files -lt 24 ]
                 then
                     # Process files 
                     cd ./00_Preprocessing/scripts/
@@ -70,9 +78,10 @@ else
     echo "Script did not run. Set RUN_SCRIPT=TRUE to run."
 fi
 
-if [ "${run_tracts}" == "TRUE"]
+if [ "${run_tracts}" == "TRUE" ]
 then
+    echo "Processing heatmap tracts..."
     cd ./02_Correlations/scripts/
     bash script_tracts.sh $action $auto_fit $upper_limit
     cd ../../
-done
+fi

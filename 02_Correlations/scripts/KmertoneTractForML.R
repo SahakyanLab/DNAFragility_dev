@@ -1,26 +1,19 @@
 # read arguments from job submission
-# args <- commandArgs(trailingOnly = TRUE)
-# my.path <- as.character(args[1])
-# breakpoint.experiment <- as.character(args[2])
-# k <- as.integer(args[3])
-# upper.limit <- as.integer(args[4])
-# action <- as.character(args[5])
-
-my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/02_Correlations/scripts/"
-k=8
-action="z-score"
-upper.limit=1
+args <- commandArgs(trailingOnly = TRUE)
+my.path <- as.character(args[1])
+k <- as.integer(args[2])
+action <- as.character(args[3])
+upper.limit <- as.integer(args[4])
 setwd(my.path)
 
 # load dependencies
-suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(gplots))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(gtools))
 suppressPackageStartupMessages(suppressWarnings(library(Biostrings)))
-suppressPackageStartupMessages(library(pbapply))
 source("../lib/GenerateKmerTable.R")
 source("../lib/LoadKmertoneData.R")
 source("../lib/LoopOverKmertoneData.R")
@@ -60,6 +53,9 @@ rownames(results) <- kmer.ref$kmer
 if(any(!is.finite(rowSums(results)))){
   results <- results[is.finite(rowSums(results)), ]
 }
+
+# hiarchical clustering
+# PlotKmerClustering(to.cluster = results, action = action)
 
 df.heatmap <- as_tibble(results) %>% 
   mutate(kmer = rownames(results), .before = 1) %>% 

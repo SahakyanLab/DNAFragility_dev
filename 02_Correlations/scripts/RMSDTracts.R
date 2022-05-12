@@ -6,7 +6,7 @@ auto.fit <- as.logical(args[3])
 setwd(my.path)
 
 # load dependencies
-suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(suppressWarnings(library(dplyr)))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(stringr))
@@ -15,11 +15,11 @@ suppressPackageStartupMessages(library(stringr))
 all.files <- list.files(
   path = "../../01_RMSD/data/", 
   pattern = paste0(ifelse(auto.fit, "key", "new"), 
-                   "_stats_kmer_", k, " *"), 
+                   "_stats_kmer_", k, ".*"), 
   recursive = TRUE 
 )
 
-if(auto.fit) curve.labels <- c("long.range", "mid.range", "short.range")
+curve.labels <- c("long.range", "mid.range", "short.range")
 
 results <- lapply(all.files, function(file){
   out <- fread(paste0("../../01_RMSD/data/", file))
@@ -60,12 +60,8 @@ suppressPackageStartupMessages(library(gplots))
 
 df <- results %>% 
   filter(rowid == "ranges") %>% 
-  select(-c(category, rowid))
-
-if(!auto.fit){
-  df <- df %>% 
-    dplyr::relocate(short.range, mid.range, long.range, .after = 1)
-}
+  select(-c(category, rowid)) %>% 
+  relocate(short.range, mid.range, long.range, .after = 1)
 
 df.hc <- apply(df[,-1], 2, scale, center = FALSE, scale = FALSE)
 rownames(df.hc) <- df$exp
@@ -76,21 +72,21 @@ transpose.df <- t(df.hc)
 col.clust <- as.dendrogram(hclust(dist(1-transpose.df), method = "complete"))
 
 dir.create("../figures/seq_influence", showWarnings = FALSE)
-pdf(paste0("../figures/seq_influence/", k, "-mer-clustering", 
+pdf(paste0("../figures/seq_influence/", k, "-mer-clustering_", 
            ifelse(auto.fit, "auto_fit", "optimised"),
            ".pdf"), height = 10, width = 8)
 
 cols <- 200
 if(auto.fit){
-  heatmap.breaks <- seq(min(df.hc, na.rm = TRUE), 
-                        max(df.hc, na.rm = TRUE), 
-                        length.out = cols+1)
-} else {
   Lower.bound <- mean(df.hc, na.rm = TRUE)-2*sd(df.hc, na.rm = TRUE)
   Upper.bound <- mean(df.hc, na.rm = TRUE)+2*sd(df.hc, na.rm = TRUE)
 
   heatmap.breaks <- seq(Lower.bound, 
                         Upper.bound, 
+                        length.out = cols+1)
+} else {
+  heatmap.breaks <- seq(min(df.hc, na.rm = TRUE), 
+                        max(df.hc, na.rm = TRUE), 
                         length.out = cols+1)
 }
 

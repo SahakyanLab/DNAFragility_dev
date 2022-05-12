@@ -10,11 +10,13 @@ upper_limit=$3
 for kmer in 4 6 8
 do
     Rscript RMSDTracts.R $my_path $kmer $auto_fit
-    Rscript KmertoneTractForML.R $my_path $kmer $action $upper_limit
 done
 
 # Kmertone
-for kmer in 2 10 
-do
-    Rscript KmertoneTractForML.R $my_path $kmer $action $upper_limit
-done
+if [ "${auto_fit}" == "FALSE" ]
+then
+    for kmer in 2 4 6 8 10
+    do
+        Rscript KmertoneTractForML.R $my_path $kmer $action $upper_limit
+    done
+fi
