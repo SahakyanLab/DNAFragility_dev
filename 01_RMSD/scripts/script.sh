@@ -9,6 +9,7 @@ cores=$4
 chromosome=$5
 control=$6
 category=$7
+auto_fit=$8
 
 # create directory to save RMSD results
 mkdir -p ../{data,figures}/${breakpoint_experiment}
@@ -20,4 +21,4 @@ do
 done
 
 echo "Plotting RMSD figures..."
-Rscript RMSDPlots.R $my_path $breakpoint_experiment $chromosome $category
+Rscript RMSDPlots.R $my_path $breakpoint_experiment $chromosome $category $auto_fit

@@ -8,6 +8,7 @@ interval=5000000
 chromosome=1
 upper_limit=1
 control="FALSE"
+auto_fit="TRUE"
 nr_of_lines=$(wc -l < Raw_data/org_file.csv)
 
 if [ "${RUN_SCRIPT}" == "TRUE" ]
@@ -37,6 +38,7 @@ then
             if [[ ! -f $path_to_bp_files/*.csv ]]
             then
                 if [ $nr_of_files -lt 22 ]
+                # if [ $nr_of_files -lt 24 ]
                 then
                     # Process files 
                     cd ./00_Preprocessing/scripts/
@@ -53,7 +55,7 @@ then
 
         # calculate sequence driven effects near breakpoints
         cd ./01_RMSD/scripts/
-        bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category
+        bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category $auto_fit
         cd ../../
 
         # perform kmertone enrichment/depletion analysis
