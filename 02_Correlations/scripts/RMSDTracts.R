@@ -3,6 +3,10 @@ args <- commandArgs(trailingOnly = TRUE)
 my.path <- as.character(args[1])
 k <- as.integer(args[2])
 auto.fit <- as.logical(args[3])
+
+# my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/02_Correlations/scripts/"
+# k=6
+# auto.fit=FALSE
 setwd(my.path)
 
 # load dependencies
@@ -22,10 +26,16 @@ all.files <- list.files(
 curve.labels <- c("long.range", "mid.range", "short.range")
 
 results <- lapply(all.files, function(file){
+  
   out <- fread(paste0("../../01_RMSD/data/", file))
   out <- as_tibble(out)
 
   if(auto.fit){
+    if(!("curve.two" %in% colnames(out))){
+      out <- cbind(out, rep(NA_real_, 4))
+      colnames(out)[length(colnames(out))] <- "curve.two"
+    }
+
     if(!("curve.three" %in% colnames(out))){
       out <- cbind(out, rep(NA_real_, 4))
       colnames(out)[length(colnames(out))] <- "curve.three"
@@ -33,11 +43,12 @@ results <- lapply(all.files, function(file){
   } else {
     missing <- which(!curve.labels %in% colnames(out))
     if(any(missing)){
-      out <- cbind(out, rep(NA_real_, 4))
-      colnames(out)[length(colnames(out))] <- curve.labels[missing]
+      for(m in missing){
+        out <- cbind(out, rep(NA_real_, 4))
+        colnames(out)[length(colnames(out))] <- curve.labels[m]
+      }
     }
   }
-
   return(out)
 }) 
 
@@ -77,18 +88,20 @@ pdf(paste0("../figures/seq_influence/", k, "-mer-clustering_",
            ".pdf"), height = 10, width = 8)
 
 cols <- 200
-if(auto.fit){
-  Lower.bound <- mean(df.hc, na.rm = TRUE)-2*sd(df.hc, na.rm = TRUE)
-  Upper.bound <- mean(df.hc, na.rm = TRUE)+2*sd(df.hc, na.rm = TRUE)
+# if(auto.fit){
+#   Lower.bound <- mean(df.hc, na.rm = TRUE)-2*sd(df.hc, na.rm = TRUE)
+#   Upper.bound <- mean(df.hc, na.rm = TRUE)+2*sd(df.hc, na.rm = TRUE)
 
-  heatmap.breaks <- seq(Lower.bound, 
-                        Upper.bound, 
-                        length.out = cols+1)
-} else {
+#   heatmap.breaks <- seq(Lower.bound, 
+#                         Upper.bound, 
+#                         length.out = cols+1)
+# } else {
   heatmap.breaks <- seq(min(df.hc, na.rm = TRUE), 
                         max(df.hc, na.rm = TRUE), 
                         length.out = cols+1)
-}
+# }
+
+# mean(df.hc, na.rm = TRUE)-2*sd(df.hc, na.rm = TRUE)
 
 heatmap.2(
   df.hc,

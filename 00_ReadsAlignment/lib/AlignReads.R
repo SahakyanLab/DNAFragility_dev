@@ -11,6 +11,35 @@ AlignReads <- function(chromosome.nr, ind, fasta.lines, breakpoint.experiment,
   if(!is.logical(BAM)) stop("BAM needs to be TRUE/FALSE logic.")
   if(!is.character(alignment.strands)) stop("alignment.strands needs to be a character vector.")
 
+  if(BED){
+
+    df <- fread(paste0("../../Raw_data/", breakpoint.experiment, 
+                       "/chr", chromosome.nr, ".bed"))
+
+    df[, `:=`(V4 = NULL, V5 = NULL)]
+
+    # get substrings of reference sequence
+    reads <- str_sub(
+      string = ref.seq.original,
+      start = df$V2,
+      end = df$V3
+    )
+
+    if(alignment.strands == "both"){
+      reads.revcomp <- reverseComplement(DNAStringSet(reads))
+      reads.revcomp <- paste(reads.revcomp)
+
+      outMatrix <- matrix(
+        data = c(reads, reads.revcomp, ref.seq),
+        ncol = 3
+      )
+    } else {
+
+    }
+
+
+  }
+
   if(ind == 0){ 
     reads <- fasta.index(
       paste0("../../Raw_data/", breakpoint.experiment, 

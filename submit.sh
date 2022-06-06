@@ -11,77 +11,65 @@ control="FALSE"
 nr_of_lines=$(wc -l < Raw_data/org_file.csv)
 
 auto_fit="FALSE"
-run_tracts="TRUE"
 action="z-score"
 
 if [ "${RUN_SCRIPT}" == "TRUE" ]
 then
-    # for ((i=2; i<=$nr_of_lines; i++))
-    # for ((i=2; i<=36; i++))
-    # for ((i=85; i<=130; i++))
-    for i in 38 48 49
+    for ((i=2; i<=$nr_of_lines; i++))
     do
-        breakpoint_type=$(awk -F, -v "row=$i" 'NR==row { print $1; exit }' Raw_data/org_file.csv)
-        exp=$(awk -F, -v "row=$i" 'NR==row { print $2; exit }' Raw_data/org_file.csv)
-        to_process=$(awk -F, -v "row=$i" 'NR==row { print $4; exit }' Raw_data/org_file.csv)
         dsb_map=$(awk -F, -v "row=$i" 'NR==row { print $11; exit }' Raw_data/org_file.csv)
-        alignment_strands=$(awk -F, -v "row=$i" 'NR==row { print $12; exit }' Raw_data/org_file.csv)
-        ref_path=$(awk -F, -v col1=$breakpoint_path -v col2=$exp '$1==col1 || $2==col2 { print $3; exit }' Raw_data/org_file.csv)
-        category=$(awk -F, -v "row=$i" 'NR==row { print $10; exit }' Raw_data/org_file.csv)
-
-        if [ "${run_tracts}" == "FALSE" ] 
+        if [ "${dsb_map}" == "TRUE" ]
         then
+            breakpoint_type=$(awk -F, -v "row=$i" 'NR==row { print $1; exit }' Raw_data/org_file.csv)
+            exp=$(awk -F, -v "row=$i" 'NR==row { print $2; exit }' Raw_data/org_file.csv)
+            to_process=$(awk -F, -v "row=$i" 'NR==row { print $4; exit }' Raw_data/org_file.csv)
+            alignment_strands=$(awk -F, -v "row=$i" 'NR==row { print $12; exit }' Raw_data/org_file.csv)
+            ref_path=$(awk -F, -v col1=$breakpoint_path -v col2=$exp '$1==col1 || $2==col2 { print $3; exit }' Raw_data/org_file.csv)
+            category=$(awk -F, -v "row=$i" 'NR==row { print $10; exit }' Raw_data/org_file.csv)
+
             echo "Processing ${breakpoint_type}/${exp}..."
-        fi
+            mkdir -p Raw_data/${breakpoint_type}/${exp}/{breakpoint_positions,kmertone}
 
-        mkdir -p Raw_data/${breakpoint_type}/${exp}/{breakpoint_positions,kmertone}
-
-        if [ "${to_process}" == "TRUE" ] && [ "${dsb_map}" == "TRUE" ]
-        then
-            start_idx=$(awk -F, -v "row=$i" 'NR==row { print $6; exit }' Raw_data/org_file.csv)
-            end_idx=$(awk -F, -v "row=$i" 'NR==row { print $7; exit }' Raw_data/org_file.csv)
-            file_format=$(awk -F, -v "row=$i" 'NR==row { print $9; exit }' Raw_data/org_file.csv)
-
-            path_to_bp_files="Raw_data/${breakpoint_type}/${exp}/breakpoint_positions"
-            nr_of_files=$((ls $path_to_bp_files/*.csv | wc -l) 2> /dev/null)
-
-            if [[ ! -f $path_to_bp_files/*.csv ]]
+            if [ "${to_process}" == "TRUE" ]
             then
-                if [ $nr_of_files -lt 22 ]
+                start_idx=$(awk -F, -v "row=$i" 'NR==row { print $6; exit }' Raw_data/org_file.csv)
+                end_idx=$(awk -F, -v "row=$i" 'NR==row { print $7; exit }' Raw_data/org_file.csv)
+                file_format=$(awk -F, -v "row=$i" 'NR==row { print $9; exit }' Raw_data/org_file.csv)
+                fastq_processed=$(awk -F, -v "row=$i" 'NR==row { print $14; exit }' Raw_data/org_file.csv)
+
+                path_to_bp_files="Raw_data/${breakpoint_type}/${exp}/breakpoint_positions"
+                nr_of_files=$((ls $path_to_bp_files/*.csv | wc -l) 2> /dev/null)
+
+                if [[ ! -f $path_to_bp_files/*.csv ]]
                 then
-                    # Process files 
-                    cd ./00_Preprocessing/scripts/
-                    bash script.sh $breakpoint_type $exp $file_format $start_idx $end_idx $alignment_strands
-                    cd ../../
+                    if [ $nr_of_files -lt 22 ]
+                    then
+                        # Process files 
+                        cd ./00_Preprocessing/scripts/
+                        # bash script.sh $breakpoint_type $exp $file_format $start_idx $end_idx $alignment_strands $fastq_processed
+                        cd ../../
+                    fi
                 fi
+            else
+                # align raw sequencing reads
+                cd ./00_ReadsAlignment/scripts/
+                # bash script.sh $breakpoint_type $exp $ref_path $cores $interval $alignment_strands
+                cd ../../
             fi
-        else
-            # align raw sequencing reads
-            cd ./00_ReadsAlignment/scripts/
-            bash script.sh $breakpoint_type $exp $ref_path $cores $interval $alignment_strands
+
+            # calculate sequence driven effects near breakpoints
+            cd ./01_RMSD/scripts/
+            # bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category $auto_fit
+            cd ../../
+
+            # perform kmertone enrichment/depletion analysis
+            first_idx=$(awk -F, -v "row=$i" 'NR==row { print $5; exit }' Raw_data/org_file.csv)
+
+            cd ./02_Correlations/scripts/
+            # bash script.sh $breakpoint_type $exp $ref_path $cores $upper_limit $first_idx
             cd ../../
         fi
-
-        # calculate sequence driven effects near breakpoints
-        cd ./01_RMSD/scripts/
-        bash script.sh $breakpoint_type $exp $ref_path $cores $chromosome $control $category $auto_fit
-        cd ../../
-
-        # perform kmertone enrichment/depletion analysis
-        first_idx=$(awk -F, -v "row=$i" 'NR==row { print $5; exit }' Raw_data/org_file.csv)
-
-        cd ./02_Correlations/scripts/
-        bash script.sh $breakpoint_type $exp $ref_path $cores $upper_limit $first_idx
-        cd ../../
     done
 else 
     echo "Script did not run. Set RUN_SCRIPT=TRUE to run."
-fi
-
-if [ "${run_tracts}" == "TRUE" ]
-then
-    echo "Processing heatmap tracts..."
-    cd ./02_Correlations/scripts/
-    bash script_tracts.sh $action $auto_fit $upper_limit
-    cd ../../
 fi

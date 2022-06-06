@@ -4,6 +4,11 @@ my.path <- as.character(args[1])
 k <- as.integer(args[2])
 action <- as.character(args[3])
 upper.limit <- as.integer(args[4])
+
+my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/02_Correlations/scripts/"
+k=4
+action="z-score"
+upper.limit=1
 setwd(my.path)
 
 # load dependencies
@@ -14,9 +19,41 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(gtools))
 suppressPackageStartupMessages(suppressWarnings(library(Biostrings)))
+suppressPackageStartupMessages(library(pbapply))
 source("../lib/GenerateKmerTable.R")
 source("../lib/LoadKmertoneData.R")
 source("../lib/LoopOverKmertoneData.R")
+
+# # ----------------
+# # helper functions
+# PlotKmerClustering <- function(to.cluster, action){
+#   if(k == 2) row.cluster.label.size=0.8
+#   if(k == 4) row.cluster.label.size=0.2
+#   if(k == 6) row.cluster.label.size=0.1
+#   if(k == 8) row.cluster.label.size=0.01
+
+#   df.dist <- dist(1 - to.cluster) %>% suppressWarnings()
+#   df.dendro <- as.dendrogram(hclust(df.dist, method = "complete"))
+#   transpose.df <- t(to.cluster)
+
+#   pdf(paste0("../figures/tracts_for_ml/", k, "-mer_", action, "-clustering.pdf"))
+#   heatmap.2(
+#     transpose.df,
+#     Rowv = FALSE,
+#     Colv = df.dendro,
+#     dendrogram = "col",
+#     revC = FALSE,
+#     trace = "none",
+#     density.info = "none",
+#     notecol = "black",
+#     cexRow = 0.8,
+#     cexCol = row.cluster.label.size,
+#     labRow = rownames(transpose.df),
+#     labCol = colnames(transpose.df)
+#   )
+#   plot.save <- dev.off()
+# }
+# # ----------------
 
 # kmer reference
 sample.kmer <- data.table(kmer = GenerateKmerTable(k, ref = FALSE))
@@ -28,6 +65,29 @@ all.files <- list.files(
   pattern = paste0("score_", k, " *"), 
   recursive = TRUE
 )
+
+# df <- tibble(
+#   breakpoint.experiment = str_extract(
+#     string = all.files, 
+#     pattern = ".+(?=_[:digit:]+/)")) %>% 
+#   group_by(breakpoint.experiment) %>% 
+#   summarise(ind = n())
+
+# results <- sapply(1:nrow(df), function(ind){
+#   upper.limit <- pull(df[ind, "ind"])
+
+#   out <- LoopOverKmertoneData(
+#     upper.limit=upper.limit,
+#     breakpoint.experiment=pull(df[ind, "breakpoint.experiment"]),
+#     action=action
+#   )
+
+#   if(upper.limit > 1){
+#     out <- as.matrix(rowMeans(out))
+#   }
+
+#   return(out)
+# })
 
 results <- sapply(all.files, function(file){
   out <- LoopOverKmertoneData(

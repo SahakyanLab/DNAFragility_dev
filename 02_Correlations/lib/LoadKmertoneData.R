@@ -3,7 +3,8 @@ LoadKmertoneData <- function(
   k, 
   kmer.table,
   kmer.ref.table,
-  action = "ratio"
+  action = "ratio",
+  to.target.dir = "../"
   ){
   
   # Parameter       Description
@@ -11,12 +12,12 @@ LoadKmertoneData <- function(
   
   # load files
   files <- list.files(
-    path = paste0("../data/kmertone/", breakpoint.experiment, "/"),
+    path = paste0(to.target.dir, "data/kmertone/", breakpoint.experiment, "/"),
     pattern = paste0("score_", k)
   )
   
   data.set <- fread(
-    file = paste0("../data/kmertone/", breakpoint.experiment, "/", files),
+    file = paste0(to.target.dir, "data/kmertone/", breakpoint.experiment, "/", files),
     sep = ",", header = TRUE, showProgress = FALSE,
     select = c("case", "control", "z")
   )

@@ -26,8 +26,7 @@ CalcKmerFreq <- function(ind, k){
   
   # update data frame with dyad frequency count
   k.mer.ref[, `:=`(freq = dfcopy$n[fwd.ind] + dfcopy$n[rev.comp.ind])]
-  k.mer.ref[, `:=`(freq = freq/sum(freq, na.rm = TRUE))]
-
+  
   # return data frame of k-mers with associated breakpoint frequencies
   return(k.mer.ref[, .(freq)])
 }

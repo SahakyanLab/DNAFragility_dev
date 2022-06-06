@@ -18,7 +18,8 @@ mkdir -p ../data/seq_influence/
 output_path="../02_Correlations/data/kmertone/${breakpoint_experiment}"
 
 # Run kmertone software
-for kmer in 2 4 6 8
+# for kmer in 2 4 6 8
+for kmer in 4
 do	
 	echo "Running kmertone enrichment/depletion analysis for kmer $kmer..."
 	Rscript ../../Kmertone/Kmertone_run.R $my_path $breakpoint_path $kmer $ref_path $output_path $cores $first_idx

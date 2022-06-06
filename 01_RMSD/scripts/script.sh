@@ -14,11 +14,12 @@ auto_fit=$8
 # create directory to save RMSD results
 mkdir -p ../{data,figures}/${breakpoint_experiment}
 
-for kmer in 2 4 6 8 10
-do
-	echo "Calculating RMSD for kmer $kmer..."
-	Rscript RMSD.R $my_path $breakpoint_experiment $chromosome $ref_path $kmer $cores $control
-done
+# for kmer in 2 4 6 8 10
+# for kmer in 4
+# do
+# 	echo "Calculating RMSD for kmer $kmer..."
+# 	Rscript RMSD.R $my_path $breakpoint_experiment $chromosome $ref_path $kmer $cores $control
+# done
 
 echo "Plotting RMSD figures..."
 Rscript RMSDPlots.R $my_path $breakpoint_experiment $chromosome $category $auto_fit

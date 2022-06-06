@@ -25,8 +25,8 @@ then
 	then		
 		echo "Extracting raw sequences from BAM file..."
 		Rscript ../lib/ExtractBAMFiles.R $my_path $breakpoint_experiment
-		BAM="TRUE"
-		rm ../../Raw_data/$breakpoint_experiment/*.bam
+		rm ../../Raw_data/$breakpoint_experiment/*.bam*
+		BAM="FALSE"
 	fi
 fi
 
@@ -40,13 +40,6 @@ do
 	if [ $ind -lt 1 ]
 	then
 		ind=1
-	fi
-
-	if [ $nr_of_BAM_files -gt 0 ]
-	then
-		BAM="TRUE"
-	else
-		BAM="FALSE"
 	fi
 
 	echo "Aligning reads for chromosome $var..."

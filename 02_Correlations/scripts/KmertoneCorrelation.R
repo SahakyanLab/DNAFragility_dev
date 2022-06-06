@@ -5,10 +5,10 @@ breakpoint.experiment <- as.character(args[2])
 k <- as.integer(args[3])
 upper.limit <- as.integer(args[4])
 
-# my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/02_Correlations/scripts/"
-# breakpoint.experiment="04-Enzymatic/exp"
-# k=2
-# upper.limit=1
+my.path="/Volumes/Paddy_5TB/ProjectBoard_Patrick/03_Breakpoints/02_Correlations/scripts/"
+breakpoint.experiment="00-Ultrasonication/Simons_exp_1"
+k=4
+upper.limit=1
 setwd(my.path)
 
 # load dependencies
