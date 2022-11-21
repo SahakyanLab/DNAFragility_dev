@@ -3,16 +3,22 @@ AlignReads <- function(chromosome.nr, ind, fasta.lines, breakpoint.experiment,
                        interval, BAM = FALSE, alignment.strands = "both"){
 
   # check input classes
-  if(!is.numeric(chromosome.nr)) stop("chromosome.nr needs to be a numeric value.")
-  if(!is.numeric(ind)) stop("ind needs to be a numeric value.")
-  if(!is.numeric(fasta.lines)) stop("fasta.lines needs to be a numeric value.")
-  if(!is.character(breakpoint.experiment)) stop("breakpoint.experiment needs to be a character vector.")
-  if(!is.numeric(interval)) stop("interval needs to be a numeric value.")
-  if(!is.logical(BAM)) stop("BAM needs to be TRUE/FALSE logic.")
-  if(!is.character(alignment.strands)) stop("alignment.strands needs to be a character vector.")
+  if(!is.numeric(chromosome.nr)) 
+    stop("chromosome.nr needs to be a numeric value.")
+  if(!is.numeric(ind)) 
+    stop("ind needs to be a numeric value.")
+  if(!is.numeric(fasta.lines)) 
+    stop("fasta.lines needs to be a numeric value.")
+  if(!is.character(breakpoint.experiment)) 
+    stop("breakpoint.experiment needs to be a character vector.")
+  if(!is.numeric(interval)) 
+    stop("interval needs to be a numeric value.")
+  if(!is.logical(BAM)) 
+    stop("BAM needs to be TRUE/FALSE logic.")
+  if(!is.character(alignment.strands)) 
+    stop("alignment.strands needs to be a character vector.")
 
   if(BED){
-
     df <- fread(paste0("../../Raw_data/", breakpoint.experiment, 
                        "/chr", chromosome.nr, ".bed"))
 

@@ -12,45 +12,8 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
   we[1] <- max(y)*y[1]
   we[length(we)] <- max(y)*y[length(y)]
 
-  # weightings towards origin of breakpoint
-  # we[1:50] <- 2
-  # we[(length(we)-50):length(we)] <- 2
-
   # error capture
   init.list <- vector(mode = "list", length = 4)
-
-  # error handling
-  # operation.cvalue <- function(C.value){
-  #   withRestarts(
-  #     tryCatch({
-  #       try.nls(C.value = C.value)
-  #     },
-  #     error = function(e){
-  #       invokeRestart("retry")
-  #     }),
-  #     retry = function(){
-  #       Coef.value <<- C.value+11
-  #       if(C.value > 1200) return(2)
-  #       operation.cvalue(C.value+11)
-  #     }
-  #   )
-  # }
-
-  # operation.sigma <- function(sigma3){
-  #   withRestarts(
-  #     tryCatch({
-  #       try.nls(sigma3 = sigma3)
-  #     },
-  #     error = function(e){
-  #       invokeRestart("retry")
-  #     }),
-  #     retry = function(){
-  #       sigma.value <<- sigma3+20
-  #       if(sigma3 >= 1000) return(2)
-  #       operation.sigma(sigma3+20)
-  #     }
-  #   )
-  # }
 
   control1 <- nls.control(maxiter = 1000)
   if(nr.of.curves == 1){
@@ -60,9 +23,9 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
           nls(
             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) + min(y)),
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x)),
+            start=list(C1=C.value, sigma1=sigma3),
             lower=c(rep(0, 2)),
-            upper=c(rep(10000, 2)),
+            upper=c(10000, 150),
             weights=we,
             algorithm="port",
             control=control1
@@ -72,9 +35,16 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
         return(
           nls(
             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) + min(y)),
+            # data=dat,
+            # start=list(C1=C.value, sigma1=sigma3),
+            # weights=we,
+            # control=control1
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x)),
+            start=list(C1=C.value, sigma1=sigma3),
+            lower=c(rep(0, 2)),
+            upper=c(10000, 150),
             weights=we,
+            algorithm="port",
             control=control1
           )
         )
@@ -110,11 +80,12 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) + min(y)),
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x),
+            start=list(C1=C.value, sigma1=sigma3*40,
                        C2=C.value, sigma2=sigma3),
             lower=c(rep(0, 4)),
-            upper=c(rep(10000, 4)),
+            upper=rep(c(10000, 150), 2),
             weights=we,
+            control=control1,
             algorithm="port"
           )
         )
@@ -123,11 +94,19 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
           nls(
             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) + min(y)),
+            # data=dat,
+            # start=list(C1=C.value, sigma1=sigma3,
+            #            C2=C.value, sigma2=sigma3*10),
+            # weights=we,
+            # control=control1
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x),
+            start=list(C1=C.value, sigma1=sigma3*40,
                        C2=C.value, sigma2=sigma3),
+            lower=c(rep(0, 4)),
+            upper=rep(c(10000, 150), 2),
             weights=we,
-            control=control1
+            control=control1,
+            algorithm="port"
           )
         )
       }
@@ -163,12 +142,13 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
                  C3 * exp(-(x-0)**2/(2 * sigma3**2)) + min(y)),
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x),
+            start=list(C1=C.value, sigma1=sigma3*20,
                        C2=C.value, sigma2=sigma3,
-                       C3=C.value, sigma3=sigma3*2),
+                       C3=C.value, sigma3=sigma3*10),
             lower=c(rep(0, 6)),
-            upper=c(rep(10000, 6)),
+            upper=rep(c(10000, 150), 4),
             weights=we,
+            control=control1,
             algorithm="port"
           )
         )
@@ -178,12 +158,21 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
                  C3 * exp(-(x-0)**2/(2 * sigma3**2)) + min(y)),
+            # data=dat,
+            # start=list(C1=C.value, sigma1=sd(x),
+            #            C2=C.value, sigma2=sigma3,
+            #            C3=C.value, sigma3=sigma3*2),
+            # weights=we,
+            # control=control1
             data=dat,
-            start=list(C1=C.value, sigma1=sd(x),
+            start=list(C1=C.value, sigma1=sigma3*20,
                        C2=C.value, sigma2=sigma3,
-                       C3=C.value, sigma3=sigma3*2),
+                       C3=C.value, sigma3=sigma3*10),
+            lower=c(rep(0, 6)),
+            upper=rep(c(10000, 150), 4),
             weights=we,
-            control=control1
+            control=control1,
+            algorithm="port"
           )
         )
 
@@ -212,7 +201,7 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
       }
     }
   }
-
+    
   summary.fit <- tryCatch({
     summary(fit)
   }, error = function(e) return(2))
@@ -243,6 +232,7 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
       list(
         fit_1, 
         list("curve.one" = 1),
+        list("curve.one" = summary.fit.params["sigma1", 1]),
         init.list[length(init.list)][[1]]
       )
     )
@@ -292,7 +282,7 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
         upper = x[length(x)],
         C = summary.fit.params["C2", 1],
         SD = summary.fit.params["sigma2", 1],
-          rel.tol = 1e-15
+        rel.tol = 1e-15
       )$value
     })
 
@@ -332,6 +322,8 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
           fit_1, fit_2, 
           list("curve.one" = curve.one.contribution, 
                "curve.two" = curve.two.contribution),
+          list("curve.one" = summary.fit.params["sigma1", 1],
+               "curve.two" = summary.fit.params["sigma2", 1]),
           init.list[length(init.list)][[1]]
         )
       )
@@ -406,6 +398,9 @@ FitGMM <- function(dat, ind, C.value=1, sigma3=2, nr.of.curves){
           list("curve.one" = curve.one.contribution, 
                "curve.two" = curve.two.contribution, 
                "curve.three" = curve.three.contribution),
+          list("curve.one" = summary.fit.params["sigma1", 1],
+               "curve.two" = summary.fit.params["sigma2", 1],
+               "curve.three" = summary.fit.params["sigma3", 1]),
           init.list[length(init.list)][[1]]
         )
       )

@@ -1,36 +1,19 @@
 MakePlot <- function(dat, k, curve.vals, nr.of.curves){
-  fit.1.lower.bound <- CalcCI(dat, curve.vals[[1]])$lower.bound
-  fit.1.upper.bound <- CalcCI(dat, curve.vals[[1]])$upper.bound
-  
+  # extract standard deviation values to compute 95% confidence intervals
+  st.devs <- unname(curve.vals[[length(curve.vals)-1]])
+
   CI.lst <- numeric(length = nr.of.curves*2)
-  CI.lst[1] <- fit.1.lower.bound
-  CI.lst[2] <- fit.1.upper.bound
+  CI.lst[1] <- -1.96*st.devs[[1]]
+  CI.lst[2] <- 1.96*st.devs[[1]]
 
   if(nr.of.curves > 1){
-    fit.2.lower.bound <- CalcCI(dat, curve.vals[[2]])$lower.bound
-    fit.2.upper.bound <- CalcCI(dat, curve.vals[[2]])$upper.bound
-
-    CI.lst[3] <- fit.2.lower.bound
-    CI.lst[4] <- fit.2.upper.bound
+    CI.lst[3] <- -1.96*st.devs[[2]]
+    CI.lst[4] <- 1.96*st.devs[[2]]
   } 
 
   if(nr.of.curves == 3){
-    fit.3.lower.bound <- CalcCI(dat, curve.vals[[3]])$lower.bound
-    fit.3.upper.bound <- CalcCI(dat, curve.vals[[3]])$upper.bound
-
-    # if too many curves fitted, confidence interval will be on edges
-    check.if.too.many.curves.fitted <- c(
-      fit.1.lower.bound, fit.1.upper.bound,
-      fit.2.lower.bound, fit.2.upper.bound,
-      fit.3.lower.bound, fit.3.upper.bound
-    )
-
-    # if(any(check.if.too.many.curves.fitted > 270 | check.if.too.many.curves.fitted < -270)){
-    #   return(2)
-    # }
-
-    CI.lst[5] <- fit.3.lower.bound
-    CI.lst[6] <- fit.3.upper.bound
+    CI.lst[5] <- -1.96*st.devs[[3]]
+    CI.lst[6] <- 1.96*st.devs[[3]]
   }
 
   y.pos <- max(dat$y)
@@ -49,8 +32,8 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
         color = "red",
         alpha = 0.8,
         size = 1.2) + 
-      geom_vline(xintercept = fit.1.lower.bound, col = "red", linetype = "dashed") + 
-      geom_vline(xintercept = fit.1.upper.bound, col = "red", linetype = "dashed") +
+      geom_vline(xintercept = CI.lst[1], col = "red", linetype = "dashed") + 
+      geom_vline(xintercept = CI.lst[2], col = "red", linetype = "dashed") +
       theme_bw() + 
       theme(
         strip.text.x = element_text(size = 10),
@@ -74,8 +57,8 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
           color = "blue",
           alpha = 0.8,
           size = 1.2) +
-        geom_vline(xintercept = fit.2.lower.bound, col = "blue", linetype = "dashed") + 
-        geom_vline(xintercept = fit.2.upper.bound, col = "blue", linetype = "dashed") + 
+        geom_vline(xintercept = CI.lst[3], col = "blue", linetype = "dashed") + 
+        geom_vline(xintercept = CI.lst[4], col = "blue", linetype = "dashed") + 
         theme_bw() + 
         theme(
           strip.text.x = element_text(size = 10),
@@ -102,8 +85,8 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
           xpos = -Inf,
           ypos = Inf,
           annotateText = paste0(
-            "Red CI:   ", formatC(signif(fit.1.lower.bound, 3), 3), " / ", formatC(signif(fit.1.upper.bound, 3), 3), "\n",
-            "Blue CI:  ", formatC(signif(fit.2.lower.bound, 3), 3), " / ", formatC(signif(fit.2.upper.bound, 3), 3)
+            "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), " / ", formatC(signif(CI.lst[2], 3), 3), "\n",
+            "Blue CI:  ", formatC(signif(CI.lst[3], 3), 3), " / ", formatC(signif(CI.lst[4], 3), 3)
           ),
           hjustvar = -0.1, vjustvar = 1.1
         ),
@@ -119,8 +102,8 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
       )
     } else {
       fit.plot <- fit.plot + 
-        geom_vline(xintercept = fit.3.lower.bound, col = "darkgreen", linetype = "dashed") + 
-        geom_vline(xintercept = fit.3.upper.bound, col = "darkgreen", linetype = "dashed") +
+        geom_vline(xintercept = CI.lst[5], col = "darkgreen", linetype = "dashed") + 
+        geom_vline(xintercept = CI.lst[6], col = "darkgreen", linetype = "dashed") +
         geom_line(
           data = data.frame(
             x = dat$x,
@@ -144,9 +127,9 @@ MakePlot <- function(dat, k, curve.vals, nr.of.curves){
             xpos = -Inf,
             ypos = Inf,
             annotateText = paste0(
-              "Red CI:   ", formatC(signif(fit.1.lower.bound, 3), 3), " / ", formatC(signif(fit.1.upper.bound, 3), 3), "\n",
-              "Green CI: ", formatC(signif(fit.3.lower.bound, 3), 3), " / ", formatC(signif(fit.3.upper.bound, 3), 3), "\n",
-              "Blue CI:  ", formatC(signif(fit.2.lower.bound, 3), 3), " / ", formatC(signif(fit.2.upper.bound, 3), 3)
+              "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), " / ", formatC(signif(CI.lst[2], 3), 3), "\n",
+              "Green CI: ", formatC(signif(CI.lst[5], 3), 3), " / ", formatC(signif(CI.lst[6], 3), 3), "\n",
+              "Blue CI:  ", formatC(signif(CI.lst[3], 3), 3), " / ", formatC(signif(CI.lst[4], 3), 3)
             ),
             hjustvar = -0.1, vjustvar = 1.1
           ),

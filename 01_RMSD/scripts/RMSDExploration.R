@@ -20,18 +20,26 @@ all.files <- list.files(
   recursive = TRUE 
 )
 
+all.curves <- c("curve.one", "curve.two", "curve.three")
+
 results <- lapply(all.files, function(file){
   out <- fread(paste0("../data/", file))
   out <- as_tibble(out)
 
-  if(!("curve.three" %in% colnames(out))){
+  missing <- !(all.curves %in% colnames(out))
+  if(any(missing)){
+    na.cols <- which(missing)
     out <- cbind(out, rep(NA_real_, 4))
-    colnames(out)[length(colnames(out))] <- "curve.three"
+    colnames(out)[length(colnames(out))] <- all.curves[na.cols[1]]
+
+    if(length(na.cols) > 1){
+        out <- cbind(out, rep(NA_real_, 4))
+        colnames(out)[length(colnames(out))] <- all.curves[na.cols[2]]
+    }
   }
 
   return(out)
 }) 
-
 results <- do.call(rbind, results)
 
 # Flatten all ranges; plot histogram/density plot
@@ -41,25 +49,9 @@ df <- results %>%
     tidyr::gather(-exp, key = "Curve", value = "Value") %>% 
     dplyr::filter(!is.na(Value))
 
-# df %>% 
-#     ggplot(aes(x = Value)) +
-#     geom_histogram(
-#         aes(y = ..density..),
-#         fill = "skyblue",
-#         colour = "black",
-#         bins = 90,
-#         alpha = 0.4
-#     ) + 
-#     scale_x_log10() + 
-#     geom_density() + 
-#     labs(
-#         x = "Ranges",
-#         y = "Density"
-#     )
-
 # Try to fit binomial curve to this
 Clustering <- function(dat, log_scale){
-    dat$log_Value <- log10(dat$Value)
+    dat$log_Value <- log2(dat$Value)
 
     # Clustering
     if(log_scale){

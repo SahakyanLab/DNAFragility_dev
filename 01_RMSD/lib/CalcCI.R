@@ -2,7 +2,15 @@ CalcCI <- function(dat, xs){
   # find borders of each distribution based on 95% confidence interval
   MEAN = mean(xs)
   SD = sd(xs)
-  error <- (qnorm(0.975)*SD)/sqrt(nrow(dat))
+
+  # qnorm is the quantile function for the normal distribution. 
+  # You pick 0.975 to get a two-sided confidence interval. 
+  # This gives 2.5% of the probability in the upper tail and 2.5% in the lower tail.
+
+  # The below "error" calculation is not itself a confidence interval, 
+  # it computes the half-width of the interval.
+  # You need two numbers (left and right end or mean and half width both work).
+  error <- (qnorm(p=0.975)*SD)/sqrt(nrow(dat))
   left <- MEAN-error
   right <- MEAN+error
   
