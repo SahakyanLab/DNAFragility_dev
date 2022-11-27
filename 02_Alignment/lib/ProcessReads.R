@@ -84,7 +84,7 @@ ProcessReads <- R6::R6Class(
                             intern = TRUE
                         )
                         fasta.lines <- as.numeric(fasta.lines)
-                        index <- max(floor(((fasta.lines+self$interval-1)/self$interval)-1), 1)
+                        index <- max(floor(fasta.lines/self$interval), 1)
                         private$get_ref(ind = i, chr = chr)
 
                         for(id in 0:index){
@@ -107,17 +107,38 @@ ProcessReads <- R6::R6Class(
                 private$calc_avg_levdist()
 
                 # concatenate breakpoints into single file
+                t1 <- Sys.time()
+                cur.msg <- paste0("Concat breakpoints into chr-sep files for chr", i)
+                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                cat(paste0(cur.msg, l))
+
                 for(i in 1:22){
                     private$concat_breakpoints(i = i)   
                 }
 
+                total.time <- Sys.time() - t1
+                cat("DONE! --", signif(total.time[[1]], 2), 
+                    attr(total.time, "units"), "\n")
+
                 # format files for kmertone
+                t1 <- Sys.time()
+                cur.msg <- paste0("Formatting kmertone-ready files for chr", i)
+                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                cat(paste0(cur.msg, l))
+
                 for(i in 1:22){
                     private$format_file_for_kmertone(i = i)
                 }
 
+                total.time <- Sys.time() - t1
+                cat("DONE! --", signif(total.time[[1]], 2), 
+                    attr(total.time, "units"), "\n")
+
+                # time taken for full processing for this experiment
                 final.t <- Sys.time() - start.time
-                cat("Final time taken:", final.t[[1]], attr(final.t, "units"), "\n")
+                cat(paste(c(rep("-", 70), "\n"), collapse = ""))
+                cat("Final time taken:", signif(final.t[[1]], digits = 3), 
+                    attr(final.t, "units"), "\n")
                 cat(paste(c(rep("-", 70), "\n"), collapse = ""))
             }
         }
@@ -329,7 +350,7 @@ ProcessReads <- R6::R6Class(
                     from = self$interval+1, 
                     to = fasta.lines, 
                     by = self$interval+1
-                ) 
+                )
                 reads <- Biostrings::fasta.index(
                     private$exp_path,
                     skip = to.skip[id], 
@@ -629,7 +650,7 @@ ProcessReads <- R6::R6Class(
 
             cat(paste(c(rep("-", 70), "\n"), collapse = ""))
             cat("Avg levenshtein distance for chr1 - chr22:", 
-                mean(df$Mean, na.rm = TRUE), "\n")
+                signif(mean(df$Mean, na.rm = TRUE), digits = 3), "\n")
             cat(paste(c(rep("-", 70), "\n"), collapse = ""))
         },
 
@@ -639,12 +660,6 @@ ProcessReads <- R6::R6Class(
         #' @param i Numeric vector of index. Index loads the chromosome numeber in.
         #' @return None.
         concat_breakpoints = function(i){
-            # progress bar
-            t1 <- Sys.time()
-            cur.msg <- paste0("Concat breakpoints into chr-sep files for chr", i)
-            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-            cat(paste0(cur.msg, l))
-
             # load data sets
             files <- list.files(
                 path = paste0(private$bp_pos_path, "/chr", i),
@@ -683,11 +698,11 @@ ProcessReads <- R6::R6Class(
             )
             
             # rm txt files and only keep csv files
-            system(paste0("/bin/rm ", files))
-
-            total.time <- Sys.time() - t1
-            cat("DONE! --", signif(total.time[[1]], 2), 
-                attr(total.time, "units"), "\n")
+            folder.to.rm <- unique(stringr::str_remove(
+                string = files,
+                pattern = "/alignment_file_[[:digit:]]+.txt"
+            ))
+            system(paste0("/bin/rm -r ", folder.to.rm))
         },
 
         #' @description
@@ -695,12 +710,6 @@ ProcessReads <- R6::R6Class(
         #' @param i Numeric vector of index. Index loads the chromosome numeber in.
         #' @return None.
         format_file_for_kmertone = function(i){
-            # progress bar
-            t1 <- Sys.time()
-            cur.msg <- paste0("Formatting kmertone-ready files for chr", i)
-            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-            cat(paste0(cur.msg, l))
-
             # obtain breakpoints
             fetch.file <- paste0(
                 "../../data/", private$bp_exp,
@@ -710,7 +719,7 @@ ProcessReads <- R6::R6Class(
             
             df <- fread(
                 file = fetch.file,
-                select = c("chromosome", "start.pos"),
+                select = "start.pos",
                 showProgress = FALSE
             )
             df[, chromosome := rep(paste0("chr", i), nrow(df))]
@@ -727,10 +736,6 @@ ProcessReads <- R6::R6Class(
                 file = paste0("../../data/", private$bp_exp, 
                                 "/kmertone/chr", i, ".txt")
             )
-
-            total.time <- Sys.time() - t1
-            cat("DONE! --", signif(total.time[[1]], 2), 
-                attr(total.time, "units"), "\n")
         }
     )
 )
