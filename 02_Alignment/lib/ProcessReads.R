@@ -43,6 +43,7 @@ ProcessReads <- R6::R6Class(
                     private$org_file[i, `Experiment folder`]
                 )
                 private$file_format <- private$org_file[i, `File format`]
+                private$alignment_strand <- private$org_file[i, Alignment_strand]
 
                 if((private$file_format == "BAM") & (length(list.files(
                         path = paste0("../../data/", private$bp_exp),
@@ -139,6 +140,9 @@ ProcessReads <- R6::R6Class(
 
         #' @field file_format Character vector of the raw seq file format.
         file_format = NULL,
+
+        #' @field alignment_strand Character vector of c("both", "plus", "minus").
+        alignment_strand = NULL,
 
         #' @description
         #' Import full org_file.csv and filter for rows to be processed.
@@ -284,9 +288,9 @@ ProcessReads <- R6::R6Class(
         #' @description
         #' Aligns sequencing reads to human reference genome. Finds best match.
         #' @param chr Numeric vector of chromosome number.
-        #' @param ind Numeric vector of number of subsets of raw seq read.
+        #' @param id Numeric vector of number of subsets of raw seq read.
         #' @param fasta.lines Numeric vector of number of raw seq reads in chromosome.
-        align_reads = function(chr, ind, fasta.lines){
+        align_reads = function(chr, id, fasta.lines){
             if(private$file_format == "BED"){
                 df <- fread(
                     paste0(private$exp_path, "/chr", chr, ".bed"),
@@ -301,7 +305,7 @@ ProcessReads <- R6::R6Class(
                     end = df$V3
                 )
 
-                if(private$org_file[i, Alignment_strand] == "both"){
+                if(private$alignment_strand == "both"){
                     reads.revcomp <- Biostrings::reverseComplement(
                         Biostrings::DNAStringSet(reads)
                     )
@@ -350,13 +354,13 @@ ProcessReads <- R6::R6Class(
                 # strand information
                 strands <- sapply(str.extract, "[[", 2)
 
-                if(private$org_file[i, Alignment_strand] == "plus"){
+                if(private$alignment_strand == "plus"){
                     reads <- reads[which(strands == "+")]
-                } else if(private$org_file[i, Alignment_strand] == "minus"){
+                } else if(private$alignment_strand == "minus"){
                     reads <- Biostrings::reverseComplement(
                         reads[which(strands == "-")]
                     )
-                } else if(private$org_file[i, Alignment_strand] == "both"){
+                } else if(private$alignment_strand == "both"){
                     to.revcomp <- which(strands == "-")
                     reads <- c(
                         reads[-to.revcomp], 
@@ -412,7 +416,7 @@ ProcessReads <- R6::R6Class(
             read.start.pos <- as.integer(read.start.pos)
             read.end.pos <- read.start.pos+read.length-1
 
-            if(private$file_format != "BAM" | (private$org_file[i, Alignment_strand] == "both")){
+            if(private$file_format != "BAM" | (private$alignment_strand == "both")){
                 # get reverse complement of reads
                 reads.revcomp <- Biostrings::reverseComplement(reads)
                 reads.revcomp <- paste(reads.revcomp)
@@ -426,7 +430,7 @@ ProcessReads <- R6::R6Class(
                 end = read.end.pos
             )
 
-            if(private$file_format != "BAM" | (private$org_file[i, Alignment_strand] == "both")){
+            if(private$file_format != "BAM" | (private$alignment_strand == "both")){
                 outMatrix <- matrix(
                     data = c(reads, reads.revcomp, ref.seq), 
                     ncol = 3
@@ -441,7 +445,7 @@ ProcessReads <- R6::R6Class(
             # Levenshtein distance calculations
             lev.dist <- LevenshteinLoop(outMatrix)
 
-            if(private$file_format != "BAM" | (private$org_file[i, Alignment_strand] == "both")){
+            if(private$file_format != "BAM" | (private$alignment_strand == "both")){
                 best.align <- max.col(-lev.dist)
 
                 # align first 2 nucleotides of read against reference sequence
@@ -483,7 +487,7 @@ ProcessReads <- R6::R6Class(
                 )
             } else {
                 df <- data.table(
-                    bp.start.pos = ifelse(private$org_file[i, Alignment_strand] == "plus", 
+                    bp.start.pos = ifelse(private$alignment_strand == "plus", 
                                           read.start.pos, 
                                           read.end.pos),
                     lev.dist = lev.dist
@@ -505,8 +509,8 @@ ProcessReads <- R6::R6Class(
                 file = paste0(
                     "../../data/", private$bp_exp,
                     "/breakpoint_positions/chr", chr, 
-                    ifelse(private$org_file[i, Alignment_strand] == "plus", "/plus_alignment_", 
-                    ifelse(private$org_file[i, Alignment_strand] == "minus", "/minus_alignment_", 
+                    ifelse(private$alignment_strand == "plus", "/plus_alignment_", 
+                    ifelse(private$alignment_strand == "minus", "/minus_alignment_", 
                     "/alignment_")), 
                     "file_", id, ".txt"
                 )
