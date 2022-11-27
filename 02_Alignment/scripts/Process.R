@@ -20,22 +20,21 @@ sourceCpp("../lib/edlibFunction.cpp")
 # begin preprocessing steps
 preprocess <- ProcessReads$new(
     interval = 1000000, 
-    all_exp = FALSE,
     which_exp_ind = 48
 )
 preprocess$process_reads()
 
-df <- fread("../../data/org_file.csv")
-df <- df[Processed == "FALSE" & `DSB Map` == "TRUE"]
-ind=i=48
-df[i]
-private=self=NULL
-private$org_file=df
-self$interval = 1000000 
-self$all_exp = FALSE
-self$which_exp_ind = 48
-chr=1
-id=0
+# df <- fread("../../data/org_file.csv")
+# df <- df[Processed == "FALSE" & `DSB Map` == "TRUE"]
+# ind=i=48
+# df[i]
+# private=self=NULL
+# private$org_file=df
+# self$interval = 1000000 
+# self$all_exp = FALSE
+# self$which_exp_ind = 48
+# chr=1
+# id=0
 
 # breakpoint.experiment="24-cfDNA/Bladder_cancer"
 # ref.path="hs37d5"

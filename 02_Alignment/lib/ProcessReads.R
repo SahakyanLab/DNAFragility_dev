@@ -4,16 +4,12 @@ ProcessReads <- R6::R6Class(
         #' @field interval Numeric vector of how many reads to load into RAM.
         interval = 1000000,
 
-        #' @field all_exp Boolean. If TRUE, processing reads for all experiments.
-        all_exp = TRUE,
-
-        #' @field which_exp_ind Numeric vector. If all_exp = FALSE, provide index of
-        #' experiment to process from org_file.
+        #' @field which_exp_ind Numeric vector of the index of the experiment 
+        #' to process from org_file. If NULL, all exp will be processed.
         which_exp_ind = NULL,
 
-        initialize = function(interval, all_exp, which_exp_ind){
+        initialize = function(interval, which_exp_ind){
             if(!missing(interval)) self$interval <- interval
-            if(!missing(all_exp)) self$all_exp <- all_exp
             if(!missing(which_exp_ind)) self$which_exp_ind <- which_exp_ind
 
             # get full org_file.csv
@@ -24,7 +20,7 @@ ProcessReads <- R6::R6Class(
         #' Processes reads from each experiment
         #' @return None.
         process_reads = function(){
-            if(is.null(self$which_exp_ind) | self$all_exp){
+            if(is.null(self$which_exp_ind)){
                 len.of.loop <- 1:nrow(private$org_file)
             } else {
                 len.of.loop <- self$which_exp_ind
