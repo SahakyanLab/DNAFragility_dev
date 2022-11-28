@@ -9,6 +9,7 @@ suppressPackageStartupMessages(suppressWarnings(library(stringr)))
 suppressPackageStartupMessages(suppressWarnings(library(Biostrings)))
 suppressPackageStartupMessages(suppressWarnings(library(ggplot2)))
 suppressPackageStartupMessages(suppressWarnings(library(pbapply)))
+suppressPackageStartupMessages(suppressWarnings(library(cluster)))
 if(length(args) > 0) pbo <- pboptions(type = "txt")
 
 my.path="/Users/paddy/Documents/DPhil/03_Breakpoints_v2/03_FitCurves/scripts"
@@ -30,16 +31,17 @@ seq_effect$calc_seq_effect(k = 4, rmsd.range = c(-21, 21))
 # df
 
 
-# df <- fread("../../data/org_file.csv")
-# df <- df[`DSB Map` == "TRUE"]
-# private=self=NULL
-# private$org_file=df
+df <- fread("../../data/org_file.csv")
+df <- df[`DSB Map` == "TRUE"]
+private=self=NULL
+private$org_file=df
 # self$chr=1
 # self$which_exp_ind=88
 # self$cores=1
 # private$control=FALSE
 # k=kmer=4
-# ind=i=88
+ind=i=88
+df[i]
 # rmsd.range=c(-10,10)
 
 # x=0
