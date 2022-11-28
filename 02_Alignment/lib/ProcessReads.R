@@ -80,7 +80,12 @@ ProcessReads <- R6::R6Class(
                             intern = TRUE
                         )
                         fasta.lines <- as.numeric(fasta.lines)
-                        index <- max(floor(fasta.lines/self$interval), 1)
+                        if(is.null(self$interval)){
+                            self$interval <- fasta.lines
+                            index <- 0
+                        } else {
+                            index <- max(floor(fasta.lines/self$interval), 1)
+                        }
                         private$get_ref(ind = i, chr = chr)
 
                         for(id in 0:index){
@@ -103,32 +108,11 @@ ProcessReads <- R6::R6Class(
                 private$calc_avg_levdist()
 
                 # concatenate breakpoints into single file
-                t1 <- Sys.time()
-                cur.msg <- paste0("Concat breakpoints into chr-sep files for chr", i)
-                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                cat(paste0(cur.msg, l))
-
-                for(i in 1:22){
-                    private$concat_breakpoints(i = i)   
-                }
-
-                total.time <- Sys.time() - t1
-                cat("DONE! --", signif(total.time[[1]], 2), 
-                    attr(total.time, "units"), "\n")
-
+                private$concat_breakpoints()   
+                
                 # format files for kmertone
-                t1 <- Sys.time()
-                cur.msg <- paste0("Formatting kmertone-ready files for chr", i)
-                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                cat(paste0(cur.msg, l))
-
-                for(i in 1:22){
-                    private$format_file_for_kmertone(i = i)
-                }
-
-                total.time <- Sys.time() - t1
-                cat("DONE! --", signif(total.time[[1]], 2), 
-                    attr(total.time, "units"), "\n")
+                private$format_file_for_kmertone()
+              
 
                 # time taken for full processing for this experiment
                 final.t <- Sys.time() - start.time
@@ -562,7 +546,7 @@ ProcessReads <- R6::R6Class(
                 })
                 df <- rbindlist(tables)
                 setnames(df, c("lev.dist", "freq"))
-
+                          
                 if(anyNA(df)){
                     df <- df[complete.cases(df)]
                 }
@@ -572,8 +556,10 @@ ProcessReads <- R6::R6Class(
 
                 # return frequency average and st.dev levenshtein distance
                 lev.dist.df <- df[, .(count = .N), by = lev.dist]
-                Mean <- sum(lev.dist.df$lev.dist*lev.dist.df$count)/sum(lev.dist.df$count)
-                SD <- sqrt(sum((lev.dist.df$lev.dist)**2*lev.dist.df$count)/(sum(lev.dist.df$count)-1))
+                Mean <- sum(lev.dist.df$lev.dist*lev.dist.df$count)/
+                        sum(lev.dist.df$count)
+                SD <- sqrt(sum((lev.dist.df$lev.dist)**2*lev.dist.df$count)/
+                          (sum(lev.dist.df$count)-1))
                 return(list(Mean, SD))
             })
 
@@ -653,85 +639,105 @@ ProcessReads <- R6::R6Class(
         #' @description
         #' Concatenates all breakpoint files "alignment_file_i.txt" into 
         #' chromosome-separated csv files.
-        #' @param i Numeric vector of index. Index loads the chromosome numeber in.
         #' @return None.
-        concat_breakpoints = function(i){
-            # load data sets
-            files <- list.files(
-                path = paste0(private$bp_pos_path, "/chr", i),
-                pattern = "alignment_file",
-                full.names = TRUE
-            )
-            files <- stringr::str_sort(files, numeric = TRUE)
-            
-            # concatenate files
-            df <- lapply(files, function(x){
-                fread(
-                    file = x, 
-                    header = TRUE, 
-                    showProgress = FALSE
-                )
-            })
-            df <- rbindlist(df)
-            setnames(df, c("start.pos", "lev.dist", "freq"))
-            df <- unique(df, by = "start.pos")
-            
-            # save bottom ~95% of the levenshtein distance score
-            lev.dist.file <- paste0("../../data/", private$bp_exp, 
-                                    "/average_levdist/AvgLevenshteinDistance.csv")
-            if(file.exists(lev.dist.file)){
-                lev.dist.df <- fread(file = lev.dist.file, header = TRUE)
-                df <- df[lev.dist < mean(lev.dist.df$SD1)]
-            } else {
-                df <- df[lev.dist < 1]
-            }
+        concat_breakpoints = function(){
+            t1 <- Sys.time()
+            cur.msg <- paste0("Concat breakpoints into chr-sep files for chr", i)
+            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+            cat(paste0(cur.msg, l))
 
-            fwrite(
-                df,
-                file = paste0("../../data/", private$bp_exp, 
-                                "/breakpoint_positions/chr", i, ".csv"),
-                row.names = FALSE
-            )
-            
-            # rm txt files and only keep csv files
-            folder.to.rm <- unique(stringr::str_remove(
-                string = files,
-                pattern = "/alignment_file_[[:digit:]]+.txt"
-            ))
-            system(paste0("/bin/rm -r ", folder.to.rm))
+            for(i in 1:22){
+                # load data sets
+                files <- list.files(
+                    path = paste0(private$bp_pos_path, "/chr", i),
+                    pattern = "alignment_file",
+                    full.names = TRUE
+                )
+                files <- stringr::str_sort(files, numeric = TRUE)
+                
+                # concatenate files
+                df <- lapply(files, function(x){
+                    fread(
+                        file = x, 
+                        header = TRUE, 
+                        showProgress = FALSE
+                    )
+                })
+                df <- rbindlist(df)
+                setnames(df, c("start.pos", "lev.dist", "freq"))
+                df <- unique(df, by = "start.pos")
+                
+                # save bottom ~95% of the levenshtein distance score
+                lev.dist.file <- paste0("../../data/", private$bp_exp, 
+                                        "/average_levdist/AvgLevenshteinDistance.csv")
+                if(file.exists(lev.dist.file)){
+                    lev.dist.df <- fread(file = lev.dist.file, header = TRUE)
+                    df <- df[lev.dist < mean(lev.dist.df$SD1)]
+                } else {
+                    df <- df[lev.dist < 1]
+                }
+
+                fwrite(
+                    df,
+                    file = paste0("../../data/", private$bp_exp, 
+                                    "/breakpoint_positions/chr", i, ".csv"),
+                    row.names = FALSE
+                )
+                
+                # rm txt files and only keep csv files
+                folder.to.rm <- unique(stringr::str_remove(
+                    string = files,
+                    pattern = "/alignment_file_[[:digit:]]+.txt"
+                ))
+                system(paste0("/bin/rm -r ", folder.to.rm))
+            }   
+
+            total.time <- Sys.time() - t1
+            cat("DONE! --", signif(total.time[[1]], 2), 
+                attr(total.time, "units"), "\n")            
         },
 
         #' @description
         #' Formats the breakpoint csv files into kmertone-ready files.
-        #' @param i Numeric vector of index. Index loads the chromosome numeber in.
         #' @return None.
-        format_file_for_kmertone = function(i){
-            # obtain breakpoints
-            fetch.file <- paste0(
-                "../../data/", private$bp_exp,
-                "/breakpoint_positions/chr", 
-                i, ".csv"
-            )
-            
-            df <- fread(
-                file = fetch.file,
-                select = "start.pos",
-                showProgress = FALSE
-            )
-            df[, chromosome := rep(paste0("chr", i), nrow(df))]
-            setcolorder(df, c("chromosome", "start.pos"))
-            
-            dir.create(
-                paste0("../../data/", private$bp_exp, "/kmertone"),
-                showWarnings = FALSE,
-                recursive = TRUE
-            )
-            fwrite(
-                df, 
-                row.names = FALSE, 
-                file = paste0("../../data/", private$bp_exp, 
-                                "/kmertone/chr", i, ".txt")
-            )
+        format_file_for_kmertone = function(){
+            t1 <- Sys.time()
+            cur.msg <- paste0("Formatting kmertone-ready files for chr", i)
+            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+            cat(paste0(cur.msg, l))
+           
+            for(i in 1:22){
+                # obtain breakpoints
+                fetch.file <- paste0(
+                    "../../data/", private$bp_exp,
+                    "/breakpoint_positions/chr", 
+                    i, ".csv"
+                )
+                
+                df <- fread(
+                    file = fetch.file,
+                    select = "start.pos",
+                    showProgress = FALSE
+                )
+                df[, chromosome := rep(paste0("chr", i), nrow(df))]
+                setcolorder(df, c("chromosome", "start.pos"))
+                
+                dir.create(
+                    paste0("../../data/", private$bp_exp, "/kmertone"),
+                    showWarnings = FALSE,
+                    recursive = TRUE
+                )
+                fwrite(
+                    df, 
+                    row.names = FALSE, 
+                    file = paste0("../../data/", private$bp_exp, 
+                                    "/kmertone/chr", i, ".txt")
+                )
+            }
+
+            total.time <- Sys.time() - t1
+                cat("DONE! --", signif(total.time[[1]], 2), 
+                    attr(total.time, "units"), "\n")            
         }
     )
 )
