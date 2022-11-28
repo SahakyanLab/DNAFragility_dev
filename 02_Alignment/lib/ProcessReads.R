@@ -642,7 +642,7 @@ ProcessReads <- R6::R6Class(
         #' @return None.
         concat_breakpoints = function(){
             t1 <- Sys.time()
-            cur.msg <- paste0("Concat breakpoints into chr-sep files for chr", i)
+            cur.msg <- "Concat breakpoints into chr-sep files"
             l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
             cat(paste0(cur.msg, l))
 
@@ -702,7 +702,7 @@ ProcessReads <- R6::R6Class(
         #' @return None.
         format_file_for_kmertone = function(){
             t1 <- Sys.time()
-            cur.msg <- paste0("Formatting kmertone-ready files for chr", i)
+            cur.msg <- "Formatting kmertone-ready files"
             l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
             cat(paste0(cur.msg, l))
            
