@@ -655,41 +655,43 @@ ProcessReads <- R6::R6Class(
                 )
                 files <- stringr::str_sort(files, numeric = TRUE)
                 
-                # concatenate files
-                df <- lapply(files, function(x){
-                    fread(
-                        file = x, 
-                        header = TRUE, 
-                        showProgress = FALSE
-                    )
-                })
-                df <- rbindlist(df)
-                setnames(df, c("start.pos", "lev.dist", "freq"))
-                df <- unique(df, by = "start.pos")
-                
-                # save bottom ~95% of the levenshtein distance score
-                lev.dist.file <- paste0("../../data/", private$bp_exp, 
-                                        "/average_levdist/AvgLevenshteinDistance.csv")
-                if(file.exists(lev.dist.file)){
-                    lev.dist.df <- fread(file = lev.dist.file, header = TRUE)
-                    df <- df[lev.dist < mean(lev.dist.df$SD1)]
-                } else {
-                    df <- df[lev.dist < 1]
-                }
+                if(length(files) > 0){
+                    # concatenate files
+                    df <- lapply(files, function(x){
+                        fread(
+                            file = x, 
+                            header = TRUE, 
+                            showProgress = FALSE
+                        )
+                    })
+                    df <- rbindlist(df)
+                    setnames(df, c("start.pos", "lev.dist", "freq"))
+                    df <- unique(df, by = "start.pos")
+                    
+                    # save bottom ~95% of the levenshtein distance score
+                    lev.dist.file <- paste0("../../data/", private$bp_exp, 
+                                            "/average_levdist/AvgLevenshteinDistance.csv")
+                    if(file.exists(lev.dist.file)){
+                        lev.dist.df <- fread(file = lev.dist.file, header = TRUE)
+                        df <- df[lev.dist < mean(lev.dist.df$SD1)]
+                    } else {
+                        df <- df[lev.dist < 1]
+                    }
 
-                fwrite(
-                    df,
-                    file = paste0("../../data/", private$bp_exp, 
-                                    "/breakpoint_positions/chr", i, ".csv"),
-                    row.names = FALSE
-                )
-                
-                # rm txt files and only keep csv files
-                folder.to.rm <- unique(stringr::str_remove(
-                    string = files,
-                    pattern = "/alignment_file_[[:digit:]]+.txt"
-                ))
-                system(paste0("/bin/rm -r ", folder.to.rm))
+                    fwrite(
+                        df,
+                        file = paste0("../../data/", private$bp_exp, 
+                                        "/breakpoint_positions/chr", i, ".csv"),
+                        row.names = FALSE
+                    )
+                    
+                    # rm txt files and only keep csv files
+                    folder.to.rm <- unique(stringr::str_remove(
+                        string = files,
+                        pattern = "/alignment_file_[[:digit:]]+.txt"
+                    ))
+                    system(paste0("/bin/rm -r ", folder.to.rm))
+                }
             }   
 
             total.time <- Sys.time() - t1
