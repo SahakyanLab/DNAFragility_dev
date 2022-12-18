@@ -2,20 +2,25 @@ SequenceEffect <- R6::R6Class(
     classname = "SequenceEffect",
     public = list(
         #' @field chr Numeric vector of chromosome number.
-        chr = NULL,
+        chr = 1,
 
         #' @field which_exp_ind Numeric vector of the index of the experiment 
         #' to process from org_file. If NULL, all exp will be processed.
-        which_exp_ind = NULL,
+        which_exp_ind = 1,
 
-        #' @field cores Numeric vector of the nr of CPUs to use.
-        cores = NULL,
+        #' @field plots list of ggplot objects showing the RMSD values vs. 
+        #' positions away from breakpoint per kmer.
+        plots = NULL,
 
-        initialize = function(chr, which_exp_ind, cores, control){
+        #' @field seed Numeric vector to fix the seed.
+        seed = 1234,
+
+        initialize = function(chr, which_exp_ind, control, seed, cores){
             if(!missing(chr)) self$chr <- chr
             if(!missing(which_exp_ind)) self$which_exp_ind <- which_exp_ind
-            if(!missing(cores)) self$cores <- cores
             if(!missing(control)) private$control <- control
+            if(!missing(seed)) self$seed <- seed
+            if(!missing(cores)) private$cores <- cores
 
             # get full org_file.csv
             private$get_org_file()
@@ -25,7 +30,7 @@ SequenceEffect <- R6::R6Class(
         #' Calculate sequence-context effect via two adjacent
         #' base-pair of all aligned reads RMSD computations.
         #' @return None.
-        calc_seq_effect = function(k, rmsd.range = c(-301, 301)){
+        calc_seq_effect = function(k, rmsd.range = c(-301, 301), from_file = FALSE){
             rmsd.range <- rmsd.range[1]:rmsd.range[2]
 
             if(is.null(self$which_exp_ind)){
@@ -54,11 +59,11 @@ SequenceEffect <- R6::R6Class(
                     private$org_file[i, `Experiment folder`]
                 )
 
-                # load breakpoint
-                private$load_breakpoints()
-
                 # load human reference genome
                 private$get_ref(ind = i)
+
+                # load breakpoint
+                private$load_breakpoints(from_file = from_file)
 
                 for(kmer in private$k){
                     cur.msg <- paste0("Calculating RMSD values for kmer ", kmer)
@@ -82,6 +87,59 @@ SequenceEffect <- R6::R6Class(
                     attr(final.t, "units"), "\n")
                 cat(paste(c(rep("-", 70), "\n"), collapse = ""))
             }
+        },
+
+        #' @description
+        #' Generates ggplots of calculated RMSD values.
+        #' @return None.
+        quick_plot_check = function(){
+            t1 <- Sys.time()
+            cur.msg <- "Generating RMSD plots"
+            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+            cat(paste0(cur.msg, l))
+
+            plots.saved <- c()
+            for(kmer in private$k){
+                files <- list.files(
+                    path = paste0("../data/", private$bp_exp),
+                    pattern = paste0(
+                        ifelse(private$control,
+                        paste0("^control_rmsd_kmer_", kmer, 
+                               "_seed_", self$seed), 
+                        paste0("^rmsd_kmer_", kmer))
+                    ),
+                    full.names = TRUE
+                )
+                df <- readRDS(file = files)
+                limits <- length(df)/2-1
+                df <- as_tibble(df) %>% 
+                    dplyr::mutate( 
+                        x = -limits:(length(df)-limits-1)) %>% 
+                    dplyr::rename(y = value)
+
+                p1 <- df %>%
+                    ggplot(aes(x = x, y = y)) + 
+                    geom_line(linewidth = 0.8) + 
+                    theme_bw() + 
+                    labs(
+                        x = "Position away from breakpoint",
+                        y = "RMSD",
+                        title = paste0("Exp: ", private$bp_exp),
+                        subtitle = paste0("kmer_", kmer)
+                    ) +
+                    ylim(0, NA)
+
+                self$plots[[paste0("kmer_", kmer)]] <- p1
+                plots.saved <- c(plots.saved, paste0("self$plots$kmer_", kmer))
+            }
+
+            # time taken for full processing for this experiment
+            total.time <- Sys.time() - t1
+            cat("DONE! --", signif(total.time[[1]], 2), 
+                attr(total.time, "units"), "\n")
+            cat(paste(c(rep("-", 70), "\n"), collapse = ""))
+            cat("View plots:", plots.saved, "\n")
+            cat(paste(c(rep("-", 70), "\n"), collapse = ""))            
         }
     ), 
     private = list(
@@ -109,6 +167,9 @@ SequenceEffect <- R6::R6Class(
 
         #' @field k Numeric vector of k-mer size.
         k = NULL,
+
+        #' @field cores Numeric vector of the number of cores to use for calculations.
+        cores = 1, 
 
         #' @description
         #' Import full org_file.csv and filter for rows to be processed.
@@ -153,7 +214,7 @@ SequenceEffect <- R6::R6Class(
         #' @description 
         #' Load breakpoints for one chromosome.
         #' @return None.
-        load_breakpoints = function(){
+        load_breakpoints = function(from_file = FALSE){
             fetch.file <- paste0(
                 "../../data/", private$bp_exp,
                 "/breakpoint_positions/chr", 
@@ -162,19 +223,47 @@ SequenceEffect <- R6::R6Class(
             
             df <- fread(
                 file = fetch.file,
-                select = c("start.pos", "freq"),
                 showProgress = FALSE
             )
+            if("freq" %in% colnames(df)) df[, lev.dist := NULL]
             setorder(df, start.pos)
 
             if(private$control){
                 # create control breakpoints
-                set.seed(seed = 1234)
-                df <- data.table(
-                    start.pos = floor(runif(
-                        n = nrow(df), 
-                        min = 1, 
-                        max = width(private$ref))))[order(start.pos)]
+                if(from_file){
+                    df <- fread(paste0(
+                        "../lib/control_bp_kmer_8_seed_", self$seed, ".csv"
+                    ))
+                    df[, freq := 1]
+                } else {
+                    set.seed(self$seed)
+                    to.sample <- 1500000
+                    sample.points <- sample(
+                        width(private$ref), 
+                        size = to.sample, 
+                        replace = FALSE
+                    )
+                    sample.points <- 
+                        sample.points[!sample.points %in% df$start.pos]
+
+                    # get substring of reference sequence
+                    ref.seqs <- substring(
+                        text = private$ref,
+                        first = sample.points,
+                        last = sample.points+1
+                    )
+                    to.keep <- which(!stringr::str_detect(
+                        string = ref.seqs,
+                        pattern = "N"
+                    ))
+                    sample.points <- sample.points[to.keep]
+                    sample.points <- unique(sample.points)
+                    sample.points <- sort(sample.points)
+                    df <- data.table(
+                        start.pos = sample.points, 
+                        freq = 1
+                    )
+                }
             }
             private$df_bp <- df
         },
@@ -185,14 +274,28 @@ SequenceEffect <- R6::R6Class(
         #' @param kmer Numeric vector of kmer to perform calculation on.
         #' @return None.
         run_rmsd = function(rmsd.range, kmer){
-            # kmer frequency calculations
-            freq <- pbapply::pblapply(rmsd.range, function(x){
-                freq.vals <- private$calc_kmer_freq(ind = x, kmer = kmer)
+            if(private$cores > 1){
+                cl <- makeCluster(private$cores)
+                registerDoParallel(cl)
+                `%op%` <- `%dopar%`
+            } else {
+                `%op%` <- `%do%`
+            }
+
+            freq <- foreach(i = 1:length(rmsd.range),
+                            .export = c(ls(globalenv()), "private", "self"),
+                            .packages = c("foreach", "data.table", "stringr", "R6"),
+                            .inorder = TRUE)%op%{
+                SequenceEffect$parent_env <- environment()
+                freq.vals <- private$calc_kmer_freq(ind = rmsd.range[i], kmer = kmer)
                 norm.vals <- freq.vals/sum(freq.vals, na.rm = TRUE)
                 return(list(freq.vals, norm.vals))
-            }, cl = self$cores)
+            } %>% 
+            suppressWarnings() # ignore 'already exporting variables' warning from foreach
+
             freq.vals <- sapply(freq, `[[`, 1)
             norm.vals <- sapply(freq, `[[`, 2)
+            if(private$cores > 1) stopCluster(cl)
 
             # save absolute frequency values for motif analysis
             dir.create(
@@ -202,33 +305,39 @@ SequenceEffect <- R6::R6Class(
             )
             saveRDS(
                 object = freq.vals,
-                file = paste0("../data/", private$bp_exp,
-                              ifelse(private$control, 
-                              "/control_freq_rmsd_kmer_", 
-                              "/freq_rmsd_kmer_"),
-                              kmer, ".Rdata")
+                file = paste0(
+                    "../data/", private$bp_exp,
+                    ifelse(private$control, 
+                    paste0("/control_freq_rmsd_kmer_", 
+                           kmer, "_seed_", self$seed), 
+                    paste0("/freq_rmsd_kmer_", kmer)),
+                    ".Rdata")
             )
             # save normalised frequency values
             saveRDS(
                 object = norm.vals,
-                file = paste0("../data/", private$bp_exp,
-                              ifelse(private$control, 
-                              "/control_rmsd_kmer_", 
-                              "/normalised_freq_rmsd_kmer_"),
-                              kmer, ".Rdata")
+                file = paste0(
+                    "../data/", private$bp_exp,
+                    ifelse(private$control, 
+                    paste0("/control_normalised_freq_rmsd_kmer_", 
+                           kmer, "_seed_", self$seed),  
+                    paste0("/normalised_freq_rmsd_kmer_", kmer)),
+                    ".Rdata")
             )
 
             # save rmsd values
-            rmsd.values <- pbapply::pbsapply(1:(dim(norm.vals)[2]-1), function(x){
+            rmsd.values <- sapply(1:(dim(norm.vals)[2]-1), function(x){
                 private$calc_rmsd(norm.vals[, x], norm.vals[, (x+1)])
             })
             saveRDS(
                 object = rmsd.values,
-                file = paste0("../data/", private$bp_exp,
-                              ifelse(private$control, 
-                              "/control_rmsd_kmer_", 
-                              "/rmsd_kmer_"),
-                              kmer, ".Rdata")
+                file = paste0(
+                    "../data/", private$bp_exp,
+                    ifelse(private$control, 
+                    paste0("/control_rmsd_kmer_", 
+                           kmer, "_seed_", self$seed), 
+                    paste0("/rmsd_kmer_", kmer)),
+                    ".Rdata")
             )
         },
 
@@ -254,8 +363,7 @@ SequenceEffect <- R6::R6Class(
             dfcopy[, start.pos := NULL]
 
             # extract k-meric counts and relative frequencies
-            dfcopy[, `:=`(fwd = stringr::str_sub(
-                string = private$ref, start = start, end = end))]
+            dfcopy[, `:=`(fwd = substring(text = private$ref, first = start, last = end))]
 
             if("-" %in% unique(dfcopy$strand)){
                 dfcopy[strand == "-", fwd := paste(
