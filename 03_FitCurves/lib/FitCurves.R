@@ -52,6 +52,12 @@ FitCurves <- R6::R6Class(
                     attr(total.time, "units"), "\n")
             }
 
+            if(is.null(self$which_exp_ind)){
+                for(kmer in c(4,6,8)){                    
+                    private$cluster_curves_into_ranges(kmer)
+                }
+            }
+
             # if(is.null(self$which_exp_ind)){
             #     # clean up the last 3 columns if not empty
             #     system("/usr/local/bin/bash check_to_clean.sh")
@@ -455,35 +461,36 @@ FitCurves <- R6::R6Class(
             # }
 
             grid_search <- data.frame(
-                sd1 = seq(2, 18, 1),
-                sd2 = seq(8, 40, 2),
-                sd3 = seq(20, 70, 3)
+                sd1 = seq(2, 16, 0.5),
+                sd2 = seq(8, 50, 1.5),
+                sd3 = seq(20, 77, 2),
+                rss = rep(NA, length(seq(2, 16, 0.5)))
             )
+            # grid_search$diff_sd1_sd2 <- abs(grid_search$sd2-grid_search$sd1)
+            # grid_search$diff_sd2_sd3 <- abs(grid_search$sd3-grid_search$sd2)
 
-            if(nr.of.curves == 2){
-                try_fit <- function(C.value = 10, sd1, sd2){
-                    nls(
-                    y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-                            C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
-                        min(y)),
-                    data=dat,
-                    start=list(C1=C.value, sigma1=sd1,
-                                C2=C.value, sigma2=sd2
-                                ),
-                    control = nls.control(
-                        maxiter=50000, 
-                        tol=1e-05, 
-                        warnOnly = TRUE
-                    ),
-                    lower=rep(c(0, 0), 2),
-                    upper=rep(c(NULL, 150), 2),
-                    trace=FALSE,
-                    algorithm="port") %>% 
-                    suppressWarnings()
-                }
-
-                index <- 1
-                while(index <= nrow(grid_search)){
+            nls.res <- lapply(1:nrow(grid_search), function(index){
+                if(nr.of.curves == 2){
+                    try_fit <- function(C.value = 10, sd1, sd2){
+                        nls(
+                        y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
+                                C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
+                            min(y)),
+                        data=dat,
+                        start=list(C1=C.value, sigma1=sd1,
+                                    C2=C.value, sigma2=sd2
+                                    ),
+                        control = nls.control(
+                            maxiter=50000, 
+                            tol=1e-05, 
+                            warnOnly = TRUE
+                        ),
+                        lower=rep(c(0, 0), 2),
+                        upper=rep(c(NULL, 150), 2),
+                        trace=FALSE,
+                        algorithm="port") %>% 
+                        suppressWarnings()
+                    }
                     fit <- tryCatch({
                         try_fit(
                             C.value = 10,
@@ -491,51 +498,29 @@ FitCurves <- R6::R6Class(
                             sd2 = grid_search$sd2[index]
                         )
                     }, error = function(e) return(2))
-                    if(class(fit) == "nls"){
-                        check.params <- fit$m$getAllPars()
-                        # check for zero coefficients
-                        any.zero.coefs <- any(check.params[grepl(
-                            pattern = "C", x = names(check.params)
-                        )] == 0)
-                        # check for sigma too small
-                        any.small.sigmas <- any(check.params[grepl(
-                            pattern = "sigma", x = names(check.params)
-                        )] < (grid_search[1,"sd1"]/2))
-                        if(any.zero.coefs | any.small.sigmas){
-                            index <- index+1
-                        } else {
-                            break
-                        }
-                    } else {
-                        index <- index+1
+                } else if(nr.of.curves == 3){
+                    try_fit <- function(C.value = 10, sd1, sd2, sd3){
+                        nls(
+                        y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
+                                C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
+                                C3 * exp(-(x-0)**2/(2 * sigma3**2)) +
+                            min(y)),
+                        data=dat,
+                        start=list(C1=C.value, sigma1=sd1,
+                                    C2=C.value, sigma2=sd2,
+                                    C3=C.value, sigma3=sd3
+                                    ),
+                        control = nls.control(
+                            maxiter=50000, 
+                            tol=1e-05, 
+                            warnOnly = TRUE
+                        ),
+                        lower=rep(c(0, 0), 3),
+                        upper=rep(c(NULL, 150), 3),
+                        trace=FALSE,
+                        algorithm="port") %>% 
+                        suppressWarnings()
                     }
-                }
-            } else if(nr.of.curves == 3){
-                try_fit <- function(C.value = 10, sd1, sd2, sd3){
-                    nls(
-                    y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-                            C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
-                            C3 * exp(-(x-0)**2/(2 * sigma3**2)) +
-                        min(y)),
-                    data=dat,
-                    start=list(C1=C.value, sigma1=sd1,
-                                C2=C.value, sigma2=sd2,
-                                C3=C.value, sigma3=sd3
-                                ),
-                    control = nls.control(
-                        maxiter=50000, 
-                        tol=1e-05, 
-                        warnOnly = TRUE
-                    ),
-                    lower=rep(c(0, 0), 3),
-                    upper=rep(c(NULL, 150), 3),
-                    trace=FALSE,
-                    algorithm="port") %>% 
-                    suppressWarnings()
-                }
-
-                index <- 1
-                while(index <= nrow(grid_search)){
                     fit <- tryCatch({
                         try_fit(
                             C.value = 10,
@@ -544,25 +529,49 @@ FitCurves <- R6::R6Class(
                             sd3 = grid_search$sd3[index]
                         )
                     }, error = function(e) return(2))
-                    if(class(fit) == "nls"){
-                        check.params <- fit$m$getAllPars()
-                        # check for zero coefficients
-                        any.zero.coefs <- any(check.params[grepl(
-                            pattern = "C", x = names(check.params)
-                        )] == 0)
-                        # check for sigma too small
-                        any.small.sigmas <- any(check.params[grepl(
-                            pattern = "sigma", x = names(check.params)
-                        )] < (grid_search[1,"sd1"]/2))
-                        if(any.zero.coefs | any.small.sigmas){
-                            index <- index+1
-                        } else {
-                            break
-                        }
+                }
+
+                if(class(fit) == "nls"){
+                    check.params <- fit$m$getAllPars()
+                    # check for zero coefficients
+                    any.zero.coefs <- any(check.params[grepl(
+                        pattern = "C", x = names(check.params)
+                    )] == 0)
+                    # check for any out-of-bound sigmas 
+                    any.oob.sigmas <- any(check.params[grepl(
+                        pattern = "sigma", x = names(check.params)
+                    )] <= 1)
+                    # (ceiling(check.params[grepl(
+                    #     pattern = "sigma", x = names(check.params)
+                    # )]) >= (298/2)))
+                    if(any.zero.coefs | any.oob.sigmas){
+                        return(NULL)
                     } else {
-                        index <- index+1
+                        grid_search$rss[index] <<- signif(
+                            fit$m$deviance(), 
+                            digits = 10
+                        )
+                        return(fit)
                     }
                 }
+                return(NULL)
+            })
+
+            # grid_search$rss <- sapply(1:length(nls.res), function(x){
+            #     temp <- nls.res[[x]]
+            #     if(class(temp) != "nls"){
+            #         return(NA)
+            #     } else{
+            #         return(signif(temp$m$deviance(), digits = 10))
+            #     }
+            # })
+
+            # find best fit if exists
+            if(all(is.na(grid_search$rss))){
+                fit <- 2
+            } else {
+                best.fit.index <- which.min(grid_search$rss)
+                fit <- nls.res[[best.fit.index]]
             }
 
             # error capture
@@ -573,17 +582,17 @@ FitCurves <- R6::R6Class(
             # extract each parameter
             summary.fit.params <- fit$m$getAllPars()
 
-            # check for zero coefficients
-            any.zero.coefs <- any(summary.fit.params[grepl(
-                pattern = "C", x = names(summary.fit.params)
-            )] == 0)
-            if(any.zero.coefs) return(init.list[[4]] <- 2)
+            # # check for zero coefficients
+            # any.zero.coefs <- any(summary.fit.params[grepl(
+            #     pattern = "C", x = names(summary.fit.params)
+            # )] == 0)
+            # if(any.zero.coefs) return(init.list[[4]] <- 2)
 
-            # check for sigma too small
-            any.small.sigmas <- any(summary.fit.params[grepl(
-                pattern = "sigma", x = names(summary.fit.params)
-            )] < grid_search[1, "sd1"])
-            if(any.zero.coefs) return(init.list[[4]] <- 2)
+            # # check for sigma too small
+            # any.small.sigmas <- any(summary.fit.params[grepl(
+            #     pattern = "sigma", x = names(summary.fit.params)
+            # )] < grid_search[1, "sd1"])
+            # if(any.zero.coefs) return(init.list[[4]] <- 2)
             
             # fit each Gaussian curve separately to data
             draw.from.gaussian <- function(xs, C, SD, miny) {
@@ -828,13 +837,14 @@ FitCurves <- R6::R6Class(
             CI.lst <- numeric(length = nr.of.curves*2)
             CI.lst[1] <- -1.96*st.devs[[1]]
             CI.lst[2] <- 1.96*st.devs[[1]]
+            limits <- 300
 
-            if(any(CI.lst[2] > 300 | CI.lst[1] < -300)){
+            if(any(CI.lst[2] > limits | CI.lst[1] < -limits)){
                 return(2)
             }
 
             if(nr.of.curves > 1){
-                if(any(1.96*st.devs[[2]] > 300 | -1.96*st.devs[[2]] < -300)){
+                if(any(1.96*st.devs[[2]] > limits | -1.96*st.devs[[2]] < -limits)){
                     return(2)
                 }
                 CI.lst[3] <- -1.96*st.devs[[2]]
@@ -842,7 +852,7 @@ FitCurves <- R6::R6Class(
             } 
 
             if(nr.of.curves == 3){
-                if(any(1.96*st.devs[[3]] > 300 | -1.96*st.devs[[3]] < -300)){
+                if(any(1.96*st.devs[[3]] > limits | -1.96*st.devs[[3]] < -limits)){
                     return(2)
                 }
                 CI.lst[5] <- -1.96*st.devs[[3]]
@@ -1026,6 +1036,298 @@ FitCurves <- R6::R6Class(
                 }
             }
             return(list(fit.plot, CI.lst))
+        },
+
+        #' @description
+        #' Performs hierarchical clustering of RMSD tracts.
+        #' @param kmer Numeric vector of the k-mer size.
+        #' @return None.
+        cluster_curves_into_ranges = function(kmer){
+            t1 <- Sys.time()
+            cur.msg <- paste0("Clustering RMSD tracts into ranges for kmer ", kmer)
+            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+            cat(paste0(cur.msg, l))
+
+            # get rmsd tracts
+            all.files <- list.files(
+                path = "../data",
+                pattern = paste0("key_stats_kmer_", kmer, " *"), 
+                recursive = TRUE,
+                full.names = TRUE
+            )
+            all.curves <- c("curve.one", "curve.two", "curve.three")
+
+            results <- lapply(all.files, function(file){
+                out <- fread(file)
+                out <- as_tibble(out)
+
+                missing <- !(all.curves %in% colnames(out))
+                if(any(missing)){
+                    na.cols <- which(missing)
+                    out <- cbind(out, rep(NA_real_, 4))
+                    colnames(out)[length(colnames(out))] <- 
+                        all.curves[na.cols[1]]
+
+                    if(length(na.cols) > 1){
+                        out <- cbind(out, rep(NA_real_, 4))
+                        colnames(out)[length(colnames(out))] <- 
+                            all.curves[na.cols[2]]
+                    }
+                }
+
+                return(out)
+            }) 
+            results <- do.call(rbind, results)
+
+            # Flatten all ranges; plot histogram/density plot
+            df <- results %>% 
+                dplyr::filter(rowid == "ranges") %>% 
+                dplyr::select(exp, curve.one, curve.two, curve.three) %>% 
+                tidyr::gather(-exp, key = "Curve", value = "Value") %>% 
+                dplyr::filter(!is.na(Value))
+
+            #' @description 
+            #' Log-transforms data for appropriate short/mid/long-range clustering.
+            #' @param dat Tibble of the experiments with ranges.
+            #' @param log_scale Boolean. If TRUE, log-transforms the data.
+            #' @return None.
+            cluster_ranges = function(dat, log_scale){
+                dat$log_Value <- log2(dat$Value)
+
+                # Clustering
+                if(log_scale){
+                    dat.dist <- dist(dat$log_Value)
+                } else {
+                    dat.dist <- dist(dat$Value)
+                }
+
+                clusts <- hclust(dat.dist, method = "complete")
+                cl_members <- cutree(clusts, k = 3)
+
+                dat <- dat %>% 
+                    dplyr::mutate(Cluster = as.numeric(cl_members))
+                    
+                hash_map <- dat %>% 
+                    dplyr::group_by(Cluster) %>% 
+                    dplyr::summarise(
+                        lower.end = min(Value),
+                        upper.end = max(Value)
+                    ) %>% 
+                    dplyr::mutate(Ranges = case_when(
+                        upper.end == min(upper.end) ~ "short.range",
+                        upper.end == median(upper.end) ~ "mid.range",
+                        upper.end == max(upper.end) ~ "long.range",
+                    )) %>% 
+                    dplyr::pull(Ranges, Cluster)
+
+                dat <- dat %>% 
+                    dplyr::mutate(Cluster = case_when(
+                        Cluster == names(hash_map)[1] ~ unname(hash_map)[1],
+                        Cluster == names(hash_map)[2] ~ unname(hash_map)[2],
+                        Cluster == names(hash_map)[3] ~ unname(hash_map)[3]
+                    ))
+                
+                if(log_scale) df <<- dat 
+
+                dat.plot <- dat %>% 
+                    ggplot(aes(x = Value)) +
+                    geom_histogram(aes(
+                        y = after_stat(density),
+                        fill = Cluster, 
+                        group = Cluster), 
+                        colour = "black",
+                        bins = 130
+                    ) +
+                    # scale_fill_discrete(labels = label) +   
+                    labs(
+                        title = paste("Sequence influences clustered into", 
+                                        length(unique(dat$Cluster)), "separate ranges"),
+                        subtitle = ifelse(log_scale, 
+                                            "Clustering based on log-scaled values", 
+                                            "Clustering based on true values"),
+                        x = "Ranges (raw values)",
+                        y = "Density in Cluster"
+                    )
+                    
+                dir.create(
+                    path = "../figures/ranges",
+                    showWarnings = FALSE,
+                    recursive = TRUE
+                )
+                ggsave(
+                    plot = dat.plot,
+                    filename = paste0("../figures/ranges/kmer_", kmer, 
+                                        ifelse(log_scale, "_LOG_", "_"), 
+                                        "flattened_ranges_histogram.pdf"),
+                    width = 10, 
+                    height = 7
+                )
+
+                if(!log_scale){
+                    # Hierarchical clustering plot
+                    pdf(paste0("../figures/ranges/kmer_", kmer, 
+                                ifelse(log_scale, "_LOG_", "_"), 
+                                "flattened_ranges_clustering.pdf"))
+                    plot(
+                        clusts, 
+                        hang = -1, 
+                        cex = 0.2,
+                        main = paste0("Hierarchical clustering on ", 
+                                        "flattened ranges of sequence influences"),
+                        xlab = "Ranges", 
+                        sub = NA
+                    )
+
+                    rect.hclust(
+                        clusts, 
+                        k = max(cl_members), 
+                        which = seq_len(max(cl_members)), 
+                        border = seq_len(max(cl_members)), 
+                        cluster = cl_members
+                    )
+                    save.plot <- dev.off()
+                }
+            }
+
+            # perform clustering and saves results
+            for(scaling in c(TRUE, FALSE)){
+                cluster_ranges(dat = df, log_scale = scaling)
+            }
+
+            # find cut-off values for each range
+            cutoff.ranges <- df %>% 
+                dplyr::group_by(Cluster) %>% 
+                dplyr::summarise(
+                    lower.end = min(Value, na.rm = TRUE),
+                    upper.end = max(Value, na.rm = TRUE)
+                )
+
+            dir.create(
+                path = "../data/ranges",
+                showWarnings = FALSE,
+                recursive = TRUE
+            )
+            fwrite(
+                x = cutoff.ranges, 
+                file = paste0("../data/ranges/kmer_", kmer, 
+                                "_Ranges_cutoffs_from_clustering.csv")
+            )
+
+            # get ranges for each exp
+            ranges.df <- df %>% 
+                dplyr::group_by(Cluster) %>% 
+                dplyr::select(-c(Curve, log_Value))
+
+            ranges.df <- ranges.df %>% 
+                dplyr::mutate(exp = factor(exp, levels = c(
+                    base::unique(ranges.df$exp) %>% 
+                        stringr::str_sort(., numeric = TRUE)
+                ))) %>% 
+                dplyr::arrange(exp, Value)
+
+            ranges.df <- ranges.df %>% 
+                dplyr::group_by(exp, Cluster) %>% 
+                dplyr::mutate(
+                    Cluster = ifelse(Value == min(Value), 
+                        paste(Cluster, "-1", sep = ""), 
+                        paste(Cluster, "-2", sep = ""))) %>% 
+                tidyr::spread(Cluster, Value) %>% 
+                dplyr::select(
+                    stringr::str_sort(names(.), numeric = TRUE)
+                )
+
+            fwrite(
+                x = ranges.df, 
+                file = paste0("../data/ranges/kmer_", kmer, 
+                            "_Ranges_cutoffs_from_clustering", 
+                            "_all-exp.csv")
+            )
+
+            files.to.import <- list.files(
+                path = "../data/ranges", 
+                pattern = "_Ranges_cutoffs_from_clustering.csv",
+                full.names = TRUE
+            )
+
+            kmer.val <- as.integer(stringr::str_extract(
+                string = basename(files.to.import), 
+                pattern = "[:digit:]"
+            ))
+
+            if(kmer == 8){
+                out <- lapply(1:length(files.to.import), function(i){
+                    out <- fread(files.to.import[i])
+                    out <- cbind(out, "kmer" = kmer.val[i])
+                })
+                out <- rbindlist(out)
+                out[, lower.end := NULL]
+
+                out <- as_tibble(out) %>% 
+                    dplyr::mutate(kmer = paste0("kmer_", kmer)) %>% 
+                    tidyr::spread(key = "kmer", value = "upper.end")
+
+                fwrite(
+                    x = out, 
+                    file = "../data/ranges/Ranges_cutoffs.csv"
+                )
+            }
+
+            # count number of curves to fit per exp
+            curve.counts <- df %>% 
+                dplyr::group_by(exp) %>%
+                dplyr::summarise(Count = dplyr::n())
+
+            fwrite(
+                x = curve.counts, 
+                file = paste0("../data/ranges/kmer_", kmer, 
+                                "_curve_counts.csv")
+            )
+
+            if(kmer == 8){
+                # Reassign org_file with curve counts per kmer
+                files.to.import <- list.files(
+                    path = "../data/ranges", 
+                    pattern = "curve_counts",
+                    full.names = TRUE
+                )
+                out <- lapply(1:length(files.to.import), function(i){
+                    out <- fread(files.to.import[i])
+                    out <- cbind(out, "kmer" = kmer.val[i])
+                })
+                out <- rbindlist(out)
+
+                out <- as_tibble(out) %>% 
+                    dplyr::mutate(kmer = paste0("kmer_", kmer)) %>% 
+                    tidyr::spread(key = "kmer", value = "Count")
+
+                # improt org_file.csv
+                org.file <- fread("../../data/org_file.csv")
+                kmer.cols <- which(grepl("^kmer_", colnames(org.file)))
+                if(any(kmer.cols)){
+                    org.file[, which(grepl("^kmer_", colnames(org.file))) := NULL]
+                    fwrite(x = org.file, file = "../../data/org_file.csv")
+                }
+                system("cp ../../data/org_file.csv ../../data/org_file_backup.csv")
+
+                org.file <- as_tibble(org.file) %>% 
+                    dplyr::mutate(
+                        exp = paste0(`Fragmentation type`, "/", `Experiment folder`), 
+                        .before = 1
+                    ) %>% 
+                    dplyr::left_join(., out, by = "exp")
+
+                org.file <- org.file %>% 
+                    dplyr::select(-exp)
+
+                fwrite(
+                    x = org.file, 
+                    file = "../../data/org_file.csv"
+                )
+            }
+
+            total.time <- Sys.time() - t1
+            cat("DONE! --", signif(total.time[[1]], 2), 
+                attr(total.time, "units"), "\n")
         }
     )
 )
