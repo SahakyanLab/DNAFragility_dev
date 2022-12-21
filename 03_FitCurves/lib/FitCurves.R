@@ -893,29 +893,51 @@ FitCurves <- R6::R6Class(
                     y = ""
                 )
 
-            if(nr.of.curves == 1){
-                fit.plot <- fit.plot + 
-                geom_text(
-                    data = data.frame(
-                        xpos = -Inf,
-                        ypos = Inf,
-                        annotateText = paste0(
-                            "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), 
-                            " / ", formatC(signif(CI.lst[2], 3), 3)
-                        ),
-                        hjustvar = -0.1, vjustvar = 1.1
-                    ),
-                    aes(
-                        x = xpos,
-                        y = ypos,
-                        hjust = hjustvar,
-                        vjust = vjustvar,
-                        label = annotateText,
-                        angle = 0
-                    ),
-                    size = 4
-                )
+            CI.annot <- function(nr.of.curves){
+                if(nr.of.curves == 2){
+                    return(paste0(
+                        "95% CIs:\n",
+                        "R: [", signif(CI.lst[1], 3), ",", 
+                                    signif(CI.lst[2], 3), "]\n",
+                        "B: [", signif(CI.lst[3], 3), ",", 
+                                    signif(CI.lst[4], 3), "]"
+                    ))              
+                } else if(nr.of.curves == 3){
+                    return(paste0(
+                        "95% CIs:\n",
+                        "R: [", signif(CI.lst[1], 3), ",", 
+                                    signif(CI.lst[2], 3), "]\n",
+                        "B: [", signif(CI.lst[3], 3), ",", 
+                                    signif(CI.lst[4], 3), "]\n",
+                        "G: [", signif(CI.lst[5], 3), ",", 
+                                    signif(CI.lst[6], 3), "]"
+                    ))
+                }
             }
+
+            # if(nr.of.curves == 1){
+            #     fit.plot <- fit.plot + 
+            #     geom_text(
+            #         data = data.frame(
+            #             xpos = -Inf,
+            #             ypos = Inf,
+            #             annotateText = paste0(
+            #                 "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), 
+            #                 " / ", formatC(signif(CI.lst[2], 3), 3)
+            #             ),
+            #             hjustvar = -0.1, vjustvar = 1.1
+            #         ),
+            #         aes(
+            #             x = xpos,
+            #             y = ypos,
+            #             hjust = hjustvar,
+            #             vjust = vjustvar,
+            #             label = annotateText,
+            #             angle = 0
+            #         ),
+            #         size = 4
+            #     )
+            # }
 
             if(nr.of.curves > 1){
                 # Plot the data with the model superimposed
@@ -962,12 +984,7 @@ FitCurves <- R6::R6Class(
                             data = data.frame(
                                 xpos = -Inf,
                                 ypos = Inf,
-                            annotateText = paste0(
-                                "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), " / ", 
-                                formatC(signif(CI.lst[2], 3), 3), "\n",
-                                "Blue CI:  ", formatC(signif(CI.lst[3], 3), 3), " / ", 
-                                formatC(signif(CI.lst[4], 3), 3)
-                            ),
+                            annotateText = CI.annot(nr.of.curves = nr.of.curves),
                               hjustvar = -0.1, vjustvar = 1.1
                             ),
                             aes(
@@ -1013,14 +1030,7 @@ FitCurves <- R6::R6Class(
                             data = data.frame(
                                 xpos = -Inf,
                                 ypos = Inf,
-                                annotateText = paste0(
-                                    "Red CI:   ", formatC(signif(CI.lst[1], 3), 3), " / ", 
-                                    formatC(signif(CI.lst[2], 3), 3), "\n",
-                                    "Green CI: ", formatC(signif(CI.lst[5], 3), 3), " / ", 
-                                    formatC(signif(CI.lst[6], 3), 3), "\n",
-                                    "Blue CI:  ", formatC(signif(CI.lst[3], 3), 3), " / ", 
-                                    formatC(signif(CI.lst[4], 3), 3)
-                                ),
+                                annotateText = CI.annot(nr.of.curves = nr.of.curves),
                                 hjustvar = -0.1, vjustvar = 1.1
                             ),
                             aes(
