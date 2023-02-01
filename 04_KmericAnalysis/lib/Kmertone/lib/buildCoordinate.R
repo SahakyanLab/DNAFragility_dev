@@ -43,19 +43,16 @@ buildCoordinate <- function(path, case.length=NULL, k, genome.name,
   suppressPackageStartupMessages( library(data.table)  )
 
   # Convert bedfile to chromosome-separated csv folder setting
-  bedfile <- grepl("\\.bed.*$", list.files(path)[1])
+  bedfile <- grepl("\\.bed|BED|narrowpeak|Narrowpeak|broadPeak.*$", list.files(path)[1])
   if (bedfile) {
 
     # Make a temporary folder containing chromosome-separated coordinates
     temp.root <- paste0("temp_", floor(runif(1, max = 100000)), "/")
 
     for (rep in seq_along(list.files(path))) {
-
       temp.path <- paste0(temp.root, "rep_", rep, "/")
       dir.create(temp.path, recursive = TRUE, showWarnings = FALSE)
-
-      bedToCoor(rep, temp.path)
-
+      bedToCoor(path = paste0(path, "/chr", rep, ".bed"), temp.path)
     }
 
     # Update path to temp.path

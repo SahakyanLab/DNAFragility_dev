@@ -30,16 +30,19 @@ SequenceEffect <- R6::R6Class(
         #' Calculate sequence-context effect via two adjacent
         #' base-pair of all aligned reads RMSD computations.
         #' @return None.
-        calc_seq_effect = function(k, rmsd.range = c(-301, 301), from_file = FALSE){
+        calc_seq_effect = function(k = NULL, rmsd.range = c(-301, 301), 
+                                   from_file = FALSE){
             rmsd.range <- rmsd.range[1]:rmsd.range[2]
 
             if(is.null(self$which_exp_ind)){
-                len.of.loop <- 1:nrow(private$org_file)
-            } else {
-                len.of.loop <- self$which_exp_ind
+                self$which_exp_ind <- which(
+                    (private$org_file$`DSB Map` == "TRUE") & 
+                    (private$org_file$`RMSD?` == "TRUE")
+                )
             }
+            len.of.loop <- self$which_exp_ind
 
-            # if k is not specified, perform calculation over c(2,4,6,8).
+            # if k is not specified, perform calculation over c(4,6,8).
             if(length(k) == 1){
                 private$k <- k
             } else {
@@ -49,15 +52,16 @@ SequenceEffect <- R6::R6Class(
             # loop over each experiment
             for(i in len.of.loop){
                 start.time <- Sys.time()
-                cur.msg <- paste0("Processing experiment ", i, 
-                                  " of ", nrow(private$org_file))
-                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                cat(cur.msg, l, "\n", sep = "")
 
                 private$bp_exp <- paste0(
                     private$org_file[i, `Fragmentation type`], "/",
                     private$org_file[i, `Experiment folder`]
                 )
+
+                cur.msg <- paste0("Processing exp ", i, "/", 
+                                  nrow(private$org_file),
+                                  ". ", private$bp_exp)
+                cat(cur.msg, "\n", sep = "")
 
                 # load human reference genome
                 private$get_ref(ind = i)
@@ -83,7 +87,7 @@ SequenceEffect <- R6::R6Class(
                 # time taken for full processing for this experiment
                 final.t <- Sys.time() - start.time
                 cat(paste(c(rep("-", 70), "\n"), collapse = ""))
-                cat("Final time taken:", signif(final.t[[1]], digits = 3), 
+                cat("Final time taken:", signif(final.t[[1]], digits = 2), 
                     attr(final.t, "units"), "\n")
                 cat(paste(c(rep("-", 70), "\n"), collapse = ""))
             }
@@ -135,7 +139,7 @@ SequenceEffect <- R6::R6Class(
 
             # time taken for full processing for this experiment
             total.time <- Sys.time() - t1
-            cat("DONE! --", signif(total.time[[1]], 2), 
+            cat("DONE! --", signif(total.time[[1]], digits = 2), 
                 attr(total.time, "units"), "\n")
             cat(paste(c(rep("-", 70), "\n"), collapse = ""))
             cat("View plots:", plots.saved, "\n")
@@ -175,11 +179,10 @@ SequenceEffect <- R6::R6Class(
         #' Import full org_file.csv and filter for rows to be processed.
         #' @return None.
         get_org_file = function(){
-            df <- fread(
+            private$org_file <- fread(
                 "../../data/org_file.csv",
                 showProgress = FALSE
-            )
-            private$org_file <- df[`DSB Map` == "TRUE"]
+            )            
         },
 
         #' @description 
@@ -280,22 +283,34 @@ SequenceEffect <- R6::R6Class(
                 `%op%` <- `%dopar%`
             } else {
                 `%op%` <- `%do%`
+                pb <- txtProgressBar(
+                    min = 1, 
+                    max = length(rmsd.range), 
+                    style = 3
+                )
             }
 
             freq <- foreach(i = 1:length(rmsd.range),
                             .export = c(ls(globalenv()), "private", "self"),
                             .packages = c("foreach", "data.table", "stringr", "R6"),
                             .inorder = TRUE)%op%{
+                if(private$cores < 2) setTxtProgressBar(pb,i)
                 SequenceEffect$parent_env <- environment()
                 freq.vals <- private$calc_kmer_freq(ind = rmsd.range[i], kmer = kmer)
                 norm.vals <- freq.vals/sum(freq.vals, na.rm = TRUE)
                 return(list(freq.vals, norm.vals))
             } %>% 
             suppressWarnings() # ignore 'already exporting variables' warning from foreach
+            if(private$cores > 1){
+                stopImplicitCluster()
+                stopCluster(cl)
+            } else {
+                close(pb)
+                cat("\n")
+            }
 
             freq.vals <- sapply(freq, `[[`, 1)
             norm.vals <- sapply(freq, `[[`, 2)
-            if(private$cores > 1) stopCluster(cl)
 
             # save absolute frequency values for motif analysis
             dir.create(
@@ -379,6 +394,7 @@ SequenceEffect <- R6::R6Class(
             
             # update data frame with dyad frequency count
             private$kmer_ref[, `:=`(freq = dfcopy$n[fwd.ind] + dfcopy$n[rev.comp.ind])]
+            private$kmer_ref$freq[which(is.na(private$kmer_ref$freq))] <- 0
             res <- private$kmer_ref$freq
             private$kmer_ref[, freq := NULL]
 

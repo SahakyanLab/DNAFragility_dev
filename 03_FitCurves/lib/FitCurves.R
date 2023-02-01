@@ -16,10 +16,12 @@ FitCurves <- R6::R6Class(
             private$get_org_file()
 
             if(is.null(self$which_exp_ind)){
-                private$len_of_loop <- 1:nrow(private$org_file)
-            } else {
-                private$len_of_loop <- self$which_exp_ind
+                self$which_exp_ind <- which(
+                    (private$org_file$`DSB Map` == "TRUE") & 
+                    (private$org_file$`RMSD?` == "TRUE")
+                )
             }
+            private$len_of_loop <- self$which_exp_ind
         },
 
         #' @description
@@ -32,24 +34,20 @@ FitCurves <- R6::R6Class(
             cat(cur.msg, l, "\n", sep = "")
 
             for(i in private$len_of_loop){
-                t1 <- Sys.time()
-                cur.msg <- paste0("Generating RMSD plots for exp ", 
-                                  i, " of ", nrow(private$org_file))
-                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                cat(paste0(cur.msg, l))
-
                 private$bp_exp <- paste0(
                     private$org_file[i, `Fragmentation type`], "/",
                     private$org_file[i, `Experiment folder`]
                 )
                 private$category <- private$org_file[i, Category_Main]
                 private$category_sub <- private$org_file[i, Category_sub]
+
+                cur.msg <- paste0("Processing ", i, "/", 
+                                  nrow(private$org_file),
+                                  ". ", private$bp_exp)
+                cat(cur.msg, "\n", sep = "")
+
                 private$fits <- c("kmer_4" = 3, "kmer_6" = 3, "kmer_8" = 3)
                 private$plot_rmsd()
-
-                total.time <- Sys.time() - t1
-                cat("DONE! --", signif(total.time[[1]], 2), 
-                    attr(total.time, "units"), "\n")
             }
 
             if(is.null(self$which_exp_ind)){
@@ -89,7 +87,7 @@ FitCurves <- R6::R6Class(
             # time taken for full processing for this experiment
             final.t <- Sys.time() - start.time
             cat(paste(c(rep("-", 70), "\n"), collapse = ""))
-            cat("Final time taken:", signif(final.t[[1]], digits = 3), 
+            cat("Final time taken:", signif(final.t[[1]], digits = 2), 
                 attr(final.t, "units"), "\n")
             cat(paste(c(rep("-", 70), "\n"), collapse = ""))
         }
@@ -121,11 +119,10 @@ FitCurves <- R6::R6Class(
         #' Import full org_file.csv and filter for rows to be processed.
         #' @return None.
         get_org_file = function(){
-            df <- fread(
+            private$org_file <- fread(
                 "../../data/org_file.csv",
                 showProgress = FALSE
             )
-            private$org_file <- df[`DSB Map` == "TRUE"]
         },
 
         #' @description
@@ -138,8 +135,11 @@ FitCurves <- R6::R6Class(
                 pattern = "^rmsd_kmer_",
                 full.names = TRUE
             )
-            file.name <- paste0("kmer_", seq(from = 2, to = 8, by = 2))
             files <- stringr::str_sort(files, numeric = TRUE)
+            file.name <- stringr::str_extract(
+                string = basename(files),
+                pattern = "kmer_[:digit:]"
+            )
 
             data.sets <- lapply(1:length(files), function(x){
                 out <- readRDS(file = files[x])
@@ -153,33 +153,31 @@ FitCurves <- R6::R6Class(
             })
             data.sets <- do.call(rbind, data.sets)
 
-            if(private$auto_fit){
-                # Overall RMSD plots
-                plots <- data.sets %>%
-                    ggplot(aes(x = x, y = y)) + 
-                        geom_line(size = 0.8) + 
-                        facet_wrap(~kmer, ncol = 2, scales = "free_y") + 
-                        theme_bw() + 
-                        coord_cartesian(ylim = c(0, NA)) + 
-                        labs(
-                            x = "Position away from breakpoint",
-                            y = "RMSD"
-                        )
+            # Overall RMSD plots
+            plots <- data.sets %>%
+                ggplot(aes(x = x, y = y)) + 
+                    geom_line(linewidth = 0.8) + 
+                    facet_wrap(~kmer, ncol = 4, scales = "free_y") + 
+                    theme_bw() + 
+                    coord_cartesian(ylim = c(0, NA)) + 
+                    labs(
+                        x = "Position away from breakpoint",
+                        y = "RMSD"
+                    )
 
-                dir.create(
-                    path = paste0("../figures/", private$bp_exp),
-                    showWarnings = FALSE,
-                    recursive = TRUE
-                )
-                ggsave(
-                    filename = paste0("../figures/", private$bp_exp, 
-                                      "/chr", self$chr, 
-                                      "_sidebyside_RMSD.pdf"),
-                    plot = plots, 
-                    height = 7, 
-                    width = 7
-                )
-            }
+            dir.create(
+                path = paste0("../figures/", private$bp_exp),
+                showWarnings = FALSE,
+                recursive = TRUE
+            )
+            ggsave(
+                filename = paste0("../figures/", private$bp_exp, 
+                                    "/chr", self$chr, 
+                                    "_sidebyside_RMSD.pdf"),
+                plot = plots, 
+                height = 6,
+                width = 21
+            )
 
             # GMM plots
             data.sets <- data.sets %>%
@@ -339,8 +337,7 @@ FitCurves <- R6::R6Class(
                     )
                     fwrite(
                         df,
-                        file = paste0("../data/", private$bp_exp, 
-                                      ifelse(private$auto_fit, "/key", "/new"),
+                        file = paste0("../data/", private$bp_exp, "/key",
                                       "_stats_", names(private$fits[k]), ".csv"),
                         row.names = FALSE
                     )
@@ -350,9 +347,7 @@ FitCurves <- R6::R6Class(
 
             ggsave(
                 filename = paste0("../figures/", private$bp_exp, 
-                                  "/chr", self$chr, "_RMSD_all_",
-                                  ifelse(private$auto_fit, 
-                                  "GMMFit.pdf", "GMMFit_optimised.pdf")),
+                                  "/chr", self$chr, "_RMSD_all_GMMFit.pdf"),
                 plot = cowplot::plot_grid(plotlist = p, axis = "b", ncol = 1), 
                 height = 15, 
                 width = 7
@@ -386,95 +381,20 @@ FitCurves <- R6::R6Class(
             )
             dat.norm <- dat.norm[1:(ceiling(nrow(dat.norm)/2)),]
 
-            # try_curvefit <- function(C.value, nr.of.curves){
-            #     # model-based clustering to obtain starting st.dev values
-            #     # for curve fittings
-            #     set.seed(1234)
-            #     best_fit <- mclust::Mclust(
-            #         dat.norm, 
-            #         G = nr.of.curves, 
-            #         verbose = FALSE
-            #     )
-            #     params <- matrix(
-            #         best_fit$parameters$variance$sigma, 
-            #         ncol = nr.of.curves
-            #     )
-            #     params.vars <- ceiling(sqrt(params[1,])/2)
-            #     params.sds <- sort(params.vars)
-
-            #     if(nr.of.curves == 2){
-            #         fit_once <- nls(
-            #             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-            #                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
-            #                  min(y)),
-            #             data=dat,
-            #             start=list(C1=C.value, sigma1=params.sds[1],
-            #                        C2=C.value, sigma2=params.sds[2]
-            #                        ),
-            #             control = nls.control(
-            #                 maxiter=50000, 
-            #                 tol=1e-05, 
-            #                 warnOnly = TRUE
-            #             ),
-            #             lower=rep(c(0, 0), 2),
-            #             upper=rep(c(NULL, 150), 2),
-            #             trace=FALSE,
-            #             algorithm="port") %>% 
-            #             suppressWarnings()
-            #     } else if(nr.of.curves == 3){
-            #         fit_once <- nls(
-            #             y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-            #                  C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
-            #                  C3 * exp(-(x-0)**2/(2 * sigma3**2)) +
-            #                 min(y)),
-            #             data=dat,
-            #             start=list(C1=C.value, sigma1=params.sds[1],
-            #                       C2=C.value, sigma2=params.sds[2],
-            #                       C3=C.value, sigma3=params.sds[3]
-            #                       ),
-            #             control = nls.control(
-            #                 maxiter=50000, 
-            #                 tol=1e-05, 
-            #                 warnOnly = TRUE
-            #             ),
-            #             lower=rep(c(0, 0), 3),
-            #             upper=rep(c(NULL, 150), 3),
-            #             trace=FALSE,
-            #             algorithm="port") %>% 
-            #             suppressWarnings()
-            #     }
-            #     return(fit_once)
-            # }
-
-            # fit <- tryCatch({
-            #     try_curvefit(
-            #         C.value = C.value, 
-            #         nr.of.curves = nr.of.curves
-            #     )
-            # }, error = function(e) return(2))
-            # if(class(fit) != "nls"){
-            #     nr.of.curves <<- nr.of.curves-1
-            #     fit <- try_curvefit(
-            #         C.value = C.value, 
-            #         nr.of.curves = nr.of.curves
-            #     )
-            # }
-
+            # grid-search based approach of starting values for nls convergence
             grid_search <- data.frame(
                 sd1 = seq(2, 16, 0.5),
                 sd2 = seq(8, 50, 1.5),
                 sd3 = seq(20, 77, 2),
                 rss = rep(NA, length(seq(2, 16, 0.5)))
             )
-            # grid_search$diff_sd1_sd2 <- abs(grid_search$sd2-grid_search$sd1)
-            # grid_search$diff_sd2_sd3 <- abs(grid_search$sd3-grid_search$sd2)
-
+            
             nls.res <- lapply(1:nrow(grid_search), function(index){
                 if(nr.of.curves == 2){
                     try_fit <- function(C.value = 10, sd1, sd2){
                         nls(
-                        y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-                                C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
+                        y ~ (C1 * exp(-(x-0)^2/(2 * sigma1^2)) +
+                                C2 * exp(-(x-0)^2/(2 * sigma2^2)) +
                             min(y)),
                         data=dat,
                         start=list(C1=C.value, sigma1=sd1,
@@ -486,7 +406,7 @@ FitCurves <- R6::R6Class(
                             warnOnly = TRUE
                         ),
                         lower=rep(c(0, 0), 2),
-                        upper=rep(c(NULL, 150), 2),
+                        upper=rep(c(NULL, 248), 3),
                         trace=FALSE,
                         algorithm="port") %>% 
                         suppressWarnings()
@@ -501,9 +421,9 @@ FitCurves <- R6::R6Class(
                 } else if(nr.of.curves == 3){
                     try_fit <- function(C.value = 10, sd1, sd2, sd3){
                         nls(
-                        y ~ (C1 * exp(-(x-0)**2/(2 * sigma1**2)) +
-                                C2 * exp(-(x-0)**2/(2 * sigma2**2)) +
-                                C3 * exp(-(x-0)**2/(2 * sigma3**2)) +
+                        y ~ (C1 * exp(-(x-0)^2/(2 * sigma1^2)) +
+                                C2 * exp(-(x-0)^2/(2 * sigma2^2)) +
+                                C3 * exp(-(x-0)^2/(2 * sigma3^2)) +
                             min(y)),
                         data=dat,
                         start=list(C1=C.value, sigma1=sd1,
@@ -516,7 +436,7 @@ FitCurves <- R6::R6Class(
                             warnOnly = TRUE
                         ),
                         lower=rep(c(0, 0), 3),
-                        upper=rep(c(NULL, 150), 3),
+                        upper=rep(c(NULL, 248), 3),
                         trace=FALSE,
                         algorithm="port") %>% 
                         suppressWarnings()
@@ -541,9 +461,6 @@ FitCurves <- R6::R6Class(
                     any.oob.sigmas <- any(check.params[grepl(
                         pattern = "sigma", x = names(check.params)
                     )] <= 1)
-                    # (ceiling(check.params[grepl(
-                    #     pattern = "sigma", x = names(check.params)
-                    # )]) >= (298/2)))
                     if(any.zero.coefs | any.oob.sigmas){
                         return(NULL)
                     } else {
@@ -556,15 +473,6 @@ FitCurves <- R6::R6Class(
                 }
                 return(NULL)
             })
-
-            # grid_search$rss <- sapply(1:length(nls.res), function(x){
-            #     temp <- nls.res[[x]]
-            #     if(class(temp) != "nls"){
-            #         return(NA)
-            #     } else{
-            #         return(signif(temp$m$deviance(), digits = 10))
-            #     }
-            # })
 
             # find best fit if exists
             if(all(is.na(grid_search$rss))){
@@ -587,36 +495,30 @@ FitCurves <- R6::R6Class(
             #     pattern = "C", x = names(summary.fit.params)
             # )] == 0)
             # if(any.zero.coefs) return(init.list[[4]] <- 2)
-
-            # # check for sigma too small
-            # any.small.sigmas <- any(summary.fit.params[grepl(
-            #     pattern = "sigma", x = names(summary.fit.params)
-            # )] < grid_search[1, "sd1"])
-            # if(any.zero.coefs) return(init.list[[4]] <- 2)
             
             # fit each Gaussian curve separately to data
-            draw.from.gaussian <- function(xs, C, SD, miny) {
-                return(C * exp(-(xs-0)**2/(2 * SD**2)) + min(miny))
+            draw.from.gaussian <- function(xs, C, SD, miny){
+                return(C*exp(-(xs-0)^2/(2*SD^2))+min(miny))
             }
 
             # integral functions for curve 1
             curve.one <- function(x, C, SD){
                 return(
-                    (C*exp(-(x-0)**2/(2*SD**2)))
+                    (C*exp(-(x-0)^2/(2*SD^2)))
                 )
             }
 
             # integral functions for curve 2
             curve.two <- function(x, C, SD){
                 return(
-                    (C*exp(-(x-0)**2/(2*SD**2)))
+                    (C*exp(-(x-0)^2/(2*SD^2)))
                 )
             }
 
             # integral functions for curve 3
             curve.three <- function(x, C, SD){
                 return(
-                    (C*exp(-(x-0)**2/(2*SD**2)))
+                    (C*exp(-(x-0)^2/(2*SD^2)))
                 )
             }
 
@@ -625,15 +527,15 @@ FitCurves <- R6::R6Class(
                                    C3=NULL, SD1, SD2, SD3=NULL){
                 if(nr.of.curves == 2){
                     return(
-                        (C1*exp(-(x-0)**2/(2*SD1**2))+
-                        C2*exp(-(x-0)**2/(2*SD2**2))
+                        (C1*exp(-(x-0)^2/(2*SD1^2))+
+                        C2*exp(-(x-0)^2/(2*SD2^2))
                         )
                     )
                 } else if(nr.of.curves == 3){
                     return(
-                        (C1*exp(-(x-0)**2/(2*SD1**2))+
-                        C2*exp(-(x-0)**2/(2*SD2**2))+
-                        C3*exp(-(x-0)**2/(2*SD3**2))
+                        (C1*exp(-(x-0)^2/(2*SD1^2))+
+                        C2*exp(-(x-0)^2/(2*SD2^2))+
+                        C3*exp(-(x-0)^2/(2*SD3^2))
                         )
                     )
                 }
@@ -644,11 +546,8 @@ FitCurves <- R6::R6Class(
                 xs = x,
                 C = summary.fit.params["C1"],
                 SD = summary.fit.params["sigma1"],
-                miny = min(y)
+                miny = min(y, na.rm = TRUE)
             )
-            if(max(fit_1, na.rm = TRUE) <= median(y, na.rm = TRUE)){
-                return(init.list[[4]] <- 2)
-            }
 
             if(nr.of.curves == 1){
                 return(
@@ -665,11 +564,8 @@ FitCurves <- R6::R6Class(
                     xs = x,
                     C = summary.fit.params["C2"],
                     SD = summary.fit.params["sigma2"],
-                    miny = min(y)
+                    miny = min(y, na.rm = TRUE)
                 )
-                if(max(fit_2, na.rm = TRUE) <= median(y, na.rm = TRUE)){
-                    return(init.list[[4]] <- 2)
-                }
 
                 # integrate curve 1
                 integral.curve.one <- tryCatch({
@@ -751,11 +647,8 @@ FitCurves <- R6::R6Class(
                         xs = x,
                         C = summary.fit.params["C3"],
                         SD = summary.fit.params["sigma3"],
-                        miny = min(y)
+                        miny = min(y, na.rm = TRUE)
                     )
-                    if(max(fit_3, na.rm = TRUE) <= median(y, na.rm = TRUE)){
-                        return(init.list[[4]] <- 2)
-                    }
 
                     # integrate curve 3
                     integral.curve.three <- tryCatch({
@@ -808,6 +701,12 @@ FitCurves <- R6::R6Class(
                     curve.one.contribution <- integral.curve.one/integral.all.curves
                     curve.two.contribution <- integral.curve.two/integral.all.curves
                     curve.three.contribution <- 1-curve.one.contribution-curve.two.contribution
+
+                    if(any(c(curve.one.contribution, 
+                             curve.two.contribution, 
+                             curve.three.contribution) < 0.05)){
+                         return(init.list[[4]] <- 2)
+                    }                    
                     return(
                         list(
                             fit_1, fit_2, fit_3, 
@@ -837,7 +736,7 @@ FitCurves <- R6::R6Class(
             CI.lst <- numeric(length = nr.of.curves*2)
             CI.lst[1] <- -1.96*st.devs[[1]]
             CI.lst[2] <- 1.96*st.devs[[1]]
-            limits <- 300
+            limits <- 500
 
             if(any(CI.lst[2] > limits | CI.lst[1] < -limits)){
                 return(2)
@@ -873,7 +772,7 @@ FitCurves <- R6::R6Class(
                     stat = "identity",
                     color = "red",
                     alpha = 0.8,
-                    size = 1.2) + 
+                    linewidth = 1.2) + 
                 geom_vline(
                     xintercept = CI.lst[1], 
                     col = "red", 
@@ -950,7 +849,7 @@ FitCurves <- R6::R6Class(
                     stat = "identity",
                     color = "blue",
                     alpha = 0.8,
-                    size = 1.2) +
+                    linewidth = 1.2) +
                     geom_vline(
                         xintercept = CI.lst[3], 
                         col = "blue", 
@@ -979,7 +878,7 @@ FitCurves <- R6::R6Class(
                                 stat = "identity",
                                 color = "orange",
                                 alpha = 0.8,
-                                size = 1) + 
+                                linewidth = 1) + 
                         geom_text(
                             data = data.frame(
                                 xpos = -Inf,
@@ -1016,7 +915,7 @@ FitCurves <- R6::R6Class(
                             stat = "identity",
                             color = "darkgreen",
                             alpha = 0.8,
-                            size = 1.2) + 
+                            linewidth = 1.2) + 
                         geom_line(
                             data = data.frame(
                                 x = dat$x, 
@@ -1025,7 +924,7 @@ FitCurves <- R6::R6Class(
                             stat = "identity",
                             color = "orange",
                             alpha = 0.8,
-                            size = 1) + 
+                            linewidth = 1) + 
                         geom_text(
                             data = data.frame(
                                 xpos = -Inf,
@@ -1338,6 +1237,274 @@ FitCurves <- R6::R6Class(
             total.time <- Sys.time() - t1
             cat("DONE! --", signif(total.time[[1]], 2), 
                 attr(total.time, "units"), "\n")
+        },
+
+        #' @description
+        #' Performs hierarchical clusterings of RMSD tracts.
+        #' @param kmer Numeric vector of the k-mer size.
+        #' @return None.
+        get_rmsd_tracts = function(kmer){
+            all.files <- list.files(
+                path = "../data",
+                pattern = paste0("key_stats_kmer_", kmer, ".*"), 
+                recursive = TRUE,
+                full.names = TRUE
+            )
+
+            if(private$auto_fit){
+                curve.labels <- c("long.range", "mid.range", "short.range")
+            } else {
+                curve.labels <- c(
+                    "short.range-1", "short.range-2",
+                    "mid.range-1", "mid.range-2",
+                    "long.range-1", "long.range-2"
+                )
+            }
+
+            results <- lapply(all.files, function(file){
+                out <- fread(file, check.names = TRUE)
+
+                if(private$auto_fit){
+                    if(!("curve.two" %in% colnames(out))){
+                        out <- cbind(out, rep(NA_real_, 4))
+                        colnames(out)[length(colnames(out))] <- "curve.two"
+                    }
+
+                    if(!("curve.three" %in% colnames(out))){
+                        out <- cbind(out, rep(NA_real_, 4))
+                        colnames(out)[length(colnames(out))] <- "curve.three"
+                    }
+                } else {
+                    not.duplicate.col.names <- str_extract(
+                        string = colnames(out)[5:length(out)], 
+                        pattern = "[:digit:]"
+                    )
+
+                    colnames(out)[5:length(out)][which(is.na(not.duplicate.col.names))] <- 
+                        paste0(colnames(out)[5:length(out)][which(is.na(not.duplicate.col.names))], "-1")
+
+                    colnames(out)[5:length(out)][which(!is.na(not.duplicate.col.names))] <- 
+                    stringr::str_replace(
+                        string = colnames(out)[5:length(out)][which(!is.na(not.duplicate.col.names))], 
+                        pattern = "\\.[0-9]",
+                        replacement = "-2"
+                    )
+
+                    missing <- which(!curve.labels %in% colnames(out))
+                    if(any(missing)){
+                        for(m in missing){
+                            out <- cbind(out, rep(NA_real_, 4))
+                            colnames(out)[length(colnames(out))] <- curve.labels[m]
+                        }
+                    }
+                }
+                return(out)
+            })
+            results <- do.call(rbind, results)
+            results <- as_tibble(results)
+
+            if(private$auto_fit){
+                results <- results %>% 
+                    dplyr::relocate(
+                        curve.one, 
+                        curve.two, 
+                        curve.three, 
+                        .after = 4) %>% 
+                    dplyr::arrange(category)
+
+                df <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(-c(
+                        category, 
+                        category_sub, 
+                        rowid)) %>% 
+                    dplyr::relocate(
+                        curve.one, 
+                        curve.two, 
+                        curve.three, 
+                        .after = 1
+                    )
+
+                colmsn <- colMeans(df[, -1], na.rm = TRUE)
+                df <- as_tibble(cbind(df[, "exp"], df[, -1][order(colmsn, decreasing = FALSE)]))
+            } else {
+                rearrange.cols <- 4+match(colnames(results[, 5:length(results)]), curve.labels)
+
+                results <- results %>% 
+                    dplyr::select(order(c(
+                        1, 2, 3, 4, 
+                        rearrange.cols))) %>% 
+                    dplyr::select(where(~sum(!is.na(.)) > 0))
+
+                df <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(-c(
+                        category, 
+                        category.sub, 
+                        rowid)
+                    )
+            }
+
+            dir.create(
+                path = paste0("../data/seq_influence"),
+                showWarnings = FALSE
+            )
+            fwrite(
+                results,
+                paste0("../data/seq_influence/", 
+                        ifelse(private$auto_fit, "key", "new"), 
+                        "_stats_kmer_", kmer, ".csv")
+            )
+
+            # hierarchical clustering
+            df.hc <- apply(df[,-1], 2, as.numeric)
+            rownames(df.hc) <- df$exp
+            df.dist <- dist(1-df.hc) %>% suppressWarnings()
+            df.dendro <- as.dendrogram(hclust(df.dist, method = "complete"))
+            transpose.df <- t(df.hc)
+
+            dir.create(
+                path = "../figures/seq_influence", 
+                showWarnings = FALSE
+            )
+            pdf(
+                paste0("../figures/seq_influence/", kmer, "-mer-clustering_", 
+                       ifelse(private$auto_fit, "auto_fit", "optimised"),
+                       ".pdf"), 
+                height = 10, 
+                width = 8
+            )
+
+            cols <- 200
+            heatmap.breaks <- seq(min(df.hc, na.rm = TRUE), 
+                                  max(df.hc, na.rm = TRUE), 
+                                  length.out = cols+1)
+            heatmap.2(
+                df.hc,
+                offsetRow = 0,
+                offsetCol = 0,
+                Rowv = df.dendro,
+                Colv = FALSE,
+                dendrogram = "row",
+                revC = FALSE,
+                trace = "none",
+                density.info = "histogram",
+                col = hcl.colors(cols, "RdYlGn"), 
+                breaks = heatmap.breaks,
+                na.color = "grey",
+                notecol = "black",
+                cexCol = 0.4,
+                cexRow = 0.4,
+                labRow = rownames(df.hc),
+                labCol = colnames(df.hc),
+                margins = c(4,20),
+                key.xlab = "RMSD ranges"
+            )
+            plot.save <- dev.off()
+
+            if(!private$auto_fit){
+                # Plot individual distributions for each range
+                p <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(
+                        exp, 
+                        category, 
+                        contains("range")) %>% 
+                    tidyr::gather(
+                        -c(exp,category), 
+                        key = "Ranges",
+                        value = "Value") %>% 
+                    dplyr::mutate(
+                        Ranges = factor(Ranges, 
+                        levels = c("short.range", 
+                                   "mid.range", 
+                                   "long.range"))) %>% 
+                    ggplot(aes(x = Value)) + 
+                    geom_histogram(aes(
+                        fill = category),
+                        bins = 50,
+                        colour = "black"
+                    ) +
+                    facet_wrap(~Ranges, scales = "free_x") +
+                    labs(
+                        title = "Sequence influences clustered into 3 separate ranges",
+                        subtitle = paste0("Kmer: ", kmer),
+                        x = "Ranges",
+                        y = "Count"
+                    )
+
+                suppressWarnings(ggsave(
+                    plot = p, 
+                    filename = paste0("../figures/seq_influence/", 
+                                      kmer, "-mer-ranges.pdf"),
+                    height = 7, 
+                    width = 13
+                ))
+            }
+
+            if(!private$auto_fit){
+                # categorical hierarchical clustering
+                df <- df %>% 
+                    tidyr::gather(-exp, key = "Curve", value = "Value") %>% 
+                    dplyr::mutate(Value = case_when(
+                        (str_detect(Curve, "short") & !is.na(Value)) ~ 1,
+                        (str_detect(Curve, "mid") & !is.na(Value)) ~ 2,
+                        (str_detect(Curve, "long") & !is.na(Value)) ~ 3)) %>% 
+                    tidyr::spread(Curve, Value)
+
+                rearrange.cols <- match(colnames(df[-1]), curve.labels)
+
+                df <- df %>% 
+                    dplyr::select(order(c(1, rearrange.cols))) %>% 
+                    dplyr::select(where(~sum(!is.na(.)) > 0))
+                
+                df.hc <- df[-1] %>% 
+                    dplyr::mutate(dplyr::across(
+                        where(is.numeric), 
+                        function(x) ifelse(is.na(x), 0, x))) %>% 
+                    dplyr::mutate(dplyr::across(
+                        where(is.numeric), 
+                        as.factor)
+                    )
+
+                df.dist <- daisy(df.hc, metric = "gower") %>% suppressWarnings()
+                df.dendro <- as.dendrogram(hclust(df.dist, method = "complete"))
+                df.hc <- apply(df.hc, 2, as.numeric)
+                rownames(df.hc) <- df$exp
+
+                pdf(
+                    paste0("../figures/seq_influence/", kmer, 
+                           "-mer-clustering_optimised-categorical.pdf"), 
+                    height = 10, 
+                    width = 8
+                )
+
+                breaks <- -1:3
+                col <- c("grey","red","orange", "darkgreen")
+
+                heatmap.2(
+                    df.hc,
+                    offsetRow = 0,
+                    offsetCol = 0,
+                    Rowv = df.dendro,
+                    Colv = FALSE,
+                    dendrogram = "row",
+                    revC = FALSE,
+                    trace = "none",
+                    density.info = "histogram",
+                    col = col, 
+                    breaks = breaks,
+                    na.color = "grey",
+                    notecol = "black",
+                    cexCol = 0.4,
+                    cexRow = 0.4,
+                    labRow = rownames(df.hc),
+                    labCol = colnames(df.hc),
+                    margins = c(4,20),
+                    key.xlab = "Category of curve"
+                )
+                plot.save <- dev.off()
+            }
         }
     )
 )

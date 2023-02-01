@@ -11,7 +11,6 @@ bedToCoor <- function(path, output.path="coordinate") {
   bed.cols <- c("chrom", "chromStart", "chromEnd", "name", "score",
                 "strand", "thickStart", "thickEnd", "itemRgb", "blockCount",
                 "blockSizes", "blockStarts")
-                
     bed <- fread(path, showProgress = FALSE)
     setnames(bed, names(bed), bed.cols[1:ncol(bed)])
     bed[, chromStart := chromStart + 1]

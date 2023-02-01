@@ -11,11 +11,11 @@ buildControl <- function(coor, ctrl.rel.pos=c(50,500), genome) {
     # Initial control region location
     control.coor <- coor[[chr.name]][, .(
       start = c(start - ctrl.rel.pos[2],
-                (if (coor$k >= coor$case.length) (start + coor$k - 1) else end) +
-                  ctrl.rel.pos[1]),
+                (if(!is.null(coor$case.length)) (start + coor$k - 1) else
+                  end) + ctrl.rel.pos[1]),
       end = c(start - ctrl.rel.pos[1],
-              (if (coor$k >= coor$case.length) (start + coor$k - 1) else end) +
-                ctrl.rel.pos[2])
+              (if(!is.null(coor$case.length)) (start + coor$k - 1) else
+                  end) + ctrl.rel.pos[2])
     )]
 
     # Build genomic.coordinate object of initial control regions
@@ -38,8 +38,8 @@ buildControl <- function(coor, ctrl.rel.pos=c(50,500), genome) {
     case.zone <- list(
       coor = coor[[chr.name]][, .(
         start = start - ctrl.rel.pos[1],
-        end = (if (coor$k >= coor$case.length) (start + coor$k - 1) else end) +
-          ctrl.rel.pos[1])],
+        end = (if(!is.null(coor$case.length)) (start + coor$k - 1) else
+                  end) + ctrl.rel.pos[1])],
 
       chr.names = "coor", is.strand.sensitive = FALSE,
       status = data.table(is.kmer = FALSE))

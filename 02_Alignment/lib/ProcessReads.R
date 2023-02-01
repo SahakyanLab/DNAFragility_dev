@@ -21,25 +21,28 @@ ProcessReads <- R6::R6Class(
         #' @return None.
         process_reads = function(){
             if(is.null(self$which_exp_ind)){
-                len.of.loop <- 1:nrow(private$org_file)
-            } else {
-                len.of.loop <- self$which_exp_ind
+                self$which_exp_ind <- which(
+                    (private$org_file$Processed == "FALSE") & 
+                    (private$org_file$`DSB Map` == "TRUE")
+                )
             }
+            len.of.loop <- self$which_exp_ind
 
             # loop over each experiment
             for(i in len.of.loop){
                 start.time <- Sys.time()
-                cur.msg <- paste0("Processing experiment ", i, 
-                                  " of ", nrow(private$org_file))
-                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                cat(cur.msg, l, "\n", sep = "")
 
                 private$bp_exp <- paste0(
                     private$org_file[i, `Fragmentation type`], "/",
                     private$org_file[i, `Experiment folder`]
-                )
+                )		        
                 private$file_format <- private$org_file[i, `File format`]
                 private$alignment_strand <- private$org_file[i, Alignment_strand]
+
+                cur.msg <- paste0("Processing exp ", i, "/", 
+                                  nrow(private$org_file),
+                                  ". ", private$bp_exp)
+                cat(cur.msg, "\n", sep = "")
 
                 if((private$file_format == "BAM") & (length(list.files(
                         path = paste0("../../data/", private$bp_exp),
@@ -48,7 +51,7 @@ ProcessReads <- R6::R6Class(
                     private$extract_bam_files()
 
                     # update org_file.csv file
-                    private$org_file[i, `File format`] <- "FASTA"
+                    private$org_file$`File format`[i] <- "FASTA"
                     fwrite(
                         private$org_file,
                         file = "../../data/org_file.csv"
@@ -56,17 +59,22 @@ ProcessReads <- R6::R6Class(
                     private$get_org_file()
                     private$file_format <- private$org_file[i, `File format`]
                 }
-
-                reads.already.processed <- list.files(
+                
+                # check if any alignments have been performed already
+                raw.chr.alignments.done <- length(list.dirs(
+                    path = paste0("../../data/", private$bp_exp,
+                                "/breakpoint_positions")
+                ))-1            
+                concat.chr.alignments.done <- length(list.files(
                     path = paste0("../../data/", private$bp_exp,
                                   "/breakpoint_positions"),
-                    pattern = "alignment_file_[[:digit:]].txt",
+                    pattern = "chr[0-9]|[10-22].csv",
                     recursive = TRUE
-                )
+                ))              
 
-                if(length(reads.already.processed) == 0){
+                if(concat.chr.alignments.done < 22){
                     # loop over each chromosome
-                    for(chr in 1:22){
+                    for(chr in max(c(raw.chr.alignments.done, 1)):22){
                         # progress message
                         t1 <- Sys.time()
                         cur.msg <- paste0("Aligning reads to reference for chr", chr)
@@ -84,7 +92,7 @@ ProcessReads <- R6::R6Class(
                             self$interval <- fasta.lines
                             index <- 0
                         } else {
-                            index <- max(floor(fasta.lines/self$interval), 1)
+                            index <- floor(fasta.lines/self$interval)
                         }
                         private$get_ref(ind = i, chr = chr)
 
@@ -105,14 +113,17 @@ ProcessReads <- R6::R6Class(
                 # obtain average levdist for all chromosomes
                 private$bp_pos_path <- paste0("../../data/", private$bp_exp,
                                               "/breakpoint_positions")
-                private$calc_avg_levdist()
+                if(raw.chr.alignments.done == 22) private$calc_avg_levdist()
 
                 # concatenate breakpoints into single file
-                private$concat_breakpoints()   
+                if(concat.chr.alignments.done < 22) private$concat_breakpoints()
+
+                # if ancient DNA, need to filter by the overlaps with the provided
+                # bed files as per the publications. Else, exclude ENCODE blacklist regions.
+                private$filter_dna_with_masks()
                 
                 # format files for kmertone
-                private$format_file_for_kmertone()
-              
+                private$format_file_for_kmertone()              
 
                 # time taken for full processing for this experiment
                 final.t <- Sys.time() - start.time
@@ -149,11 +160,10 @@ ProcessReads <- R6::R6Class(
         #' Import full org_file.csv and filter for rows to be processed.
         #' @return None.
         get_org_file = function(){
-            df <- fread(
+            private$org_file <- fread(
                 "../../data/org_file.csv",
                 showProgress = FALSE
-            )
-            private$org_file <- df[Processed == "FALSE" & `DSB Map` == "TRUE"]
+            )            
         },
 
         #' @description
@@ -176,7 +186,7 @@ ProcessReads <- R6::R6Class(
         extract_bam_files = function(){
             load_chr <- function(seqname, bamFile, with.index){
                 # reference names and lengths
-                bamInfo <- seqinfo(bamFile) 
+                bamInfo <- seqinfo(bamFile)
                 
                 # start and end region to extract
                 afrom <- 1 
@@ -190,10 +200,20 @@ ProcessReads <- R6::R6Class(
                         flag = Rsamtools::scanBamFlag(isUnmappedQuery = FALSE)
                     )
                     
+                    # progress message
+                    t1 <- Sys.time()
+                    cur.msg <- "Loading in bam file"
+                    l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                    cat(paste0(cur.msg, l))     
+
                     # load bam with region limits
                     bam.content <- Rsamtools::scanBam(
                         file = bamFile, 
-                        param = param)[[1L]] 
+                        param = param)[[1L]]
+
+                    total.time <- Sys.time() - t1
+                    cat("DONE! --", signif(total.time[[1]], 2), 
+                        attr(total.time, "units"), "\n")                    
                 } else {
                     # load bam with region limits
                     bam.content <- Rsamtools::scanBam(file = bamFile)[[1L]] 
@@ -203,6 +223,12 @@ ProcessReads <- R6::R6Class(
                 sequences <- bam.content$seq
                 names(sequences) <- paste0(bam.content$pos, "_", bam.content$strand)
                 
+                # progress message
+                t1 <- Sys.time()
+                cur.msg <- "Saving as fasta file"
+                l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                cat(paste0(cur.msg, l)) 
+
                 # save as fasta file
                 dir.create(
                     path = paste0("../../data/", private$bp_exp),
@@ -217,19 +243,25 @@ ProcessReads <- R6::R6Class(
                     format = "fasta", 
                     compress = TRUE
                 )
+
+                total.time <- Sys.time() - t1
+                cat("DONE! --", signif(total.time[[1]], 2), 
+                    attr(total.time, "units"), "\n")   
             }
 
             # locate BAM file
             files <- list.files(
-                path = paste0("../../data/", private$bp_exp),
-                pattern = "*.bam"
+                path = paste0("../../data/", private$bp_exp, "/bam"),
+                pattern = "*.bam",
+                full.names = TRUE
             )
             files <- stringr::str_sort(files, numeric = TRUE)
 
             if(length(files) > 2){
                 files <- list.files(
-                    path = paste0("../../data/", private$bp_exp),
-                    pattern = "*.bam$"
+                    path = paste0("../../data/", private$bp_exp, "/bam"),
+                    pattern = "*.bam$",
+                    full.names = TRUE
                 )
                 files <- stringr::str_sort(files, numeric = TRUE)
                 
@@ -238,20 +270,14 @@ ProcessReads <- R6::R6Class(
                     t1 <- Sys.time()
                     cur.msg <- paste0("Processing BAM file for chr", i)
                     l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                    cat(paste0(cur.msg, l))
+                    cat(cur.msg, l, "\n", sep = "")
 
-                    bamFile <- Rsamtools::BamFile(
-                        paste0("../../data/", private$bp_exp, "/", files[i])
-                    )
+                    bamFile <- Rsamtools::BamFile(files[i])
                     bam <- load_chr(
                         seqname = i, 
                         bamFile = bamFile, 
                         with.index = TRUE
                     )
-
-                    total.time <- Sys.time() - t1
-                    cat("DONE! --", signif(total.time[[1]], 2), 
-                        attr(total.time, "units"), "\n")
                 }
             } else {
                 # check if index file exists
@@ -260,26 +286,20 @@ ProcessReads <- R6::R6Class(
                     pattern = "\\.([[:alnum:]]+)$"
                 )
                 with.index <- ifelse(".bai" %in% check.ind.exist, TRUE, FALSE)
-                bamFile <- Rsamtools::BamFile(
-                    paste0("../../data/", private$bp_exp, "/", files[1])
-                )
+                bamFile <- Rsamtools::BamFile(files[1])
 
                 for(i in 1:22){
                     # progress message
                     t1 <- Sys.time()
                     cur.msg <- paste0("Processing BAM file for chr", i)
                     l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
-                    cat(paste0(cur.msg, l))
+                    cat(cur.msg, l, "\n", sep = "")   
 
                     bam <- load_chr(
                         seqname = i, 
                         bamFile = bamFile, 
                         with.index = with.index
                     )
-
-                    total.time <- Sys.time() - t1
-                    cat("DONE! --", signif(total.time[[1]], 2), 
-                        attr(total.time, "units"), "\n")
                 }
                 # Cleanup
                 # close(bamFile)
@@ -300,10 +320,10 @@ ProcessReads <- R6::R6Class(
                 df[, `:=`(V4 = NULL, V5 = NULL)]
 
                 # get substrings of reference sequence
-                reads <- stringr::str_sub(
-                    string = private$ref,
-                    start = df$V2,
-                    end = df$V3
+                reads <- substring(
+                    text = private$ref,
+                    first = df$V2,
+                    last = df$V3
                 )
 
                 if(private$alignment_strand == "both"){
@@ -425,10 +445,10 @@ ProcessReads <- R6::R6Class(
             reads <- paste(reads)
 
             # get substrings of reference sequence
-            ref.seq <- stringr::str_sub(
-                string = private$ref, 
-                start = read.start.pos, 
-                end = read.end.pos
+            ref.seq <- substring(
+                text = private$ref, 
+                first = read.start.pos, 
+                last = read.end.pos
             )
 
             if(private$file_format != "BAM" | (private$alignment_strand == "both")){
@@ -556,10 +576,10 @@ ProcessReads <- R6::R6Class(
 
                 # return frequency average and st.dev levenshtein distance
                 lev.dist.df <- df[, .(count = .N), by = lev.dist]
-                Mean <- sum(lev.dist.df$lev.dist*lev.dist.df$count)/
-                        sum(lev.dist.df$count)
-                SD <- sqrt(sum((lev.dist.df$lev.dist)**2*lev.dist.df$count)/
-                          (sum(lev.dist.df$count)-1))
+                Mean <- sum(lev.dist.df$lev.dist*lev.dist.df$count, na.rm = TRUE)/
+                        sum(lev.dist.df$count, na.rm = TRUE)
+                SD <- sqrt(sum((lev.dist.df$lev.dist)**2*lev.dist.df$count, na.rm = TRUE)/
+                          (sum(lev.dist.df$count, na.rm = TRUE)-1))
                 return(list(Mean, SD))
             })
 
@@ -673,7 +693,7 @@ ProcessReads <- R6::R6Class(
                                             "/average_levdist/AvgLevenshteinDistance.csv")
                     if(file.exists(lev.dist.file)){
                         lev.dist.df <- fread(file = lev.dist.file, header = TRUE)
-                        df <- df[lev.dist < mean(lev.dist.df$SD1)]
+                        df <- df[lev.dist < mean(lev.dist.df$SD1, na.rm = TRUE)]
                     } else {
                         df <- df[lev.dist < 1]
                     }
@@ -698,6 +718,96 @@ ProcessReads <- R6::R6Class(
             cat("DONE! --", signif(total.time[[1]], 2), 
                 attr(total.time, "units"), "\n")            
         },
+
+        #' @description
+        #' If ancient DNA, need to filter by the overlaps with the provided
+        #' bed files as per the publications. Else, exclude ENCODE blacklist regions.
+        #' @return None.
+        filter_dna_with_masks = function(){
+            t1 <- Sys.time()
+            cur.msg <- "Filter genomic DNA by provided masked/blacklist bed files"
+            l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+            cat(paste0(cur.msg, l))
+
+            # load data sets
+            files <- list.files(
+                path = private$bp_pos_path,
+                pattern = "chr[0-9]|[10-22].csv",
+                full.names = TRUE
+            )
+            files <- stringr::str_sort(files, numeric = TRUE)            
+
+            if(length(files) > 0){
+                for(i in 1:22){
+                    df <- fread(files[i], showProgress = FALSE)
+
+                    # regions of interest here
+                    if(grepl(pattern = "Ancient_DNA", x = private$bp_exp)){
+                        df.bp <- data.table(
+                            seqnames = i, 
+                            start = df$start.pos, 
+                            width = 1
+                        )
+                        df.bp <- as_granges(df.bp)
+
+                        # authors said these are regions to INCLUDE
+                        df.bed <- plyranges::read_bed(paste0(
+                            "../../data/", private$bp_exp, 
+                            "/filterbed/chr", i, "_mask.bed"
+                        ))
+                        df.bed.all.pos <- plyranges::as_granges(df.bed)
+                        # filter by overlaps
+                        df.overlaps <- plyranges::filter_by_overlaps(df.bp, df.bed.all.pos)                        
+                    } else {
+                        # these are regions to EXCLUDE 
+                        if(grepl(pattern = "hg38", 
+                                 x = private$org_file$`Reference genome folder`[i], 
+                                 ignore.case = TRUE)){
+                            df.bed.all.pos <- plyranges::read_bed(
+                                "../../data/blacklists/hg38.bed"
+                            )                            
+                        } else {
+                            df.bed.all.pos <- plyranges::read_bed(
+                                "../../data/blacklists/hg19.bed"
+                            )
+                        }
+                        seqnames.convention <- any(grepl(
+                            pattern = "chr", 
+                            x = attr(attr(df.bed.all.pos, "seqnames"), "values")
+                        ))
+                        
+                        # import true breakpoints
+                        df.bp <- data.table(
+                            seqnames = ifelse(seqnames.convention, paste0("chr", i), i), 
+                            start = df$start.pos, 
+                            width = 1
+                        )
+                        df.bp <- as_granges(df.bp)
+                        df.overlaps <- plyranges::filter_by_non_overlaps(df.bp, df.bed.all.pos)
+                    }
+
+                    # as data.table
+                    dt.overlaps <- as.data.table(df.overlaps)
+                    dt.overlaps[, `:=`(
+                        seqnames = NULL,
+                        end = NULL, 
+                        width = NULL, 
+                        strand = NULL
+                    )]
+                    dt.overlaps <- as.data.table(unique(dt.overlaps$start))
+                    setnames(dt.overlaps, "start.pos")
+
+                    fwrite(
+                        dt.overlaps,
+                        file = files[i]
+                    )
+                }
+            }
+            
+            total.time <- Sys.time() - t1
+            cat("DONE! --", signif(total.time[[1]], 2), 
+                attr(total.time, "units"), "\n")             
+        },     
 
         #' @description
         #' Formats the breakpoint csv files into kmertone-ready files.
@@ -733,7 +843,7 @@ ProcessReads <- R6::R6Class(
                     df, 
                     row.names = FALSE, 
                     file = paste0("../../data/", private$bp_exp, 
-                                    "/kmertone/chr", i, ".txt")
+                                    "/kmertone/chr", i, ".csv")
                 )
             }
 
