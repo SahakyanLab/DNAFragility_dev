@@ -18,7 +18,7 @@ prepCoordinate <- function(case.coor, case.coor.path, case.length, k,
   
   # Build genomic.coordinate-class object.
   } else if (is.null(case.coor)) {
-    case.coor <- buildCoordinate(case.coor.path, case.length, k,
+    case.coor <- buildCoordinate(path = case.coor.path, case.length, k,
                                  genome.name, strand.sensitive, merge.replicate,
                                  case.pattern, chr.name)
   }
