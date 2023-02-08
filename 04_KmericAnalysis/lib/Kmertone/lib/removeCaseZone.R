@@ -31,11 +31,20 @@ removeCaseZone <- function(control.region, case.region) {
   #              end = unique(sort(c(start, end)))[-1]),
   #          by = list(chromosome, strand, group)]
   
-  dt <- dt[, {
-    coordinate <- sort( union(start, end) )
-    list(start = coordinate[-length(coordinate)], end = coordinate[-1])
-  }, by = group] # .(chromosome, strand, group)]
-  
+  # dt <- dt[, {
+  #   coordinate <- sort( union(start, end) )
+  #   list(start = coordinate[-length(coordinate)], end = coordinate[-1])
+  # }, by = group] # .(chromosome, strand, group)]
+
+  all.groups <- unique(dt$group)
+  dt <- lapply(all.groups, function(groups){
+    temp <- dt[group == groups, {
+      coordinate <- sort( union(start, end) )
+      list(start = coordinate[-length(coordinate)], end = coordinate[-1])
+    }, by = group]
+    return(temp)
+  })  
+  dt <- rbindlist(dt)
   gc()
   
   # [4] Reorganise the columns
