@@ -9,6 +9,12 @@
 // for fast loading of fasta/q files
 #include "kseq.h"
 
+// fast hash map
+#include <boost/unordered_map.hpp>
+
+// // parallel for loop
+// #include "/usr/local/Cellar/libomp/15.0.7/include/omp.h"
+
 using namespace Rcpp;
 
 // create new kseq_t type with file type gzFile 
@@ -17,9 +23,10 @@ KSEQ_INIT(gzFile, gzread)
 
 // create alias for gzFile as file_t
 typedef gzFile file_t;
-
 // alias for time stamps
 typedef std::chrono::duration<float> float_seconds;
+// mappings
+typedef boost::unordered::unordered_map<unsigned int, std::pair<int, std::string>> boost_umap;
 
 /**
  * Reads compressed fasta file.
@@ -90,11 +97,9 @@ unsigned int hash = 5381;
  * @return encoded sequence.
 */
 std::vector<int> encode_ref(const std::string &ref_seq, int k) {
-  std::vector<int> ref_encodings;
-
   // Reserve space for the number of kmers in the reference sequence
   int num_kmers = ref_seq.length() - k + 1;
-  ref_encodings.reserve(num_kmers);
+  std::vector<int> ref_encodings(num_kmers);
 
   // Loop through the reference sequence
   for(int i = 0; i <= ref_seq.length() - k; i++){
@@ -119,10 +124,8 @@ std::vector<int> encode_ref(const std::string &ref_seq, int k) {
  * @param k size of kmer.
  * @return encoded kmers.
 */
-std::unordered_map<unsigned int, std::pair<int, std::string>> encode_kmers(
-  const std::vector<std::string> &results,
-  int k){
-  std::unordered_map<unsigned int, std::pair<int, std::string>> kmer_encodings;
+boost_umap encode_kmers(const std::vector<std::string> &results, int k){
+  boost_umap kmer_encodings;
 
   // Loop through each kmer
   for(int i = 0; i < results.size(); i++){
@@ -175,7 +178,7 @@ std::vector<std::string> generate_kmers(const int &kmer){
 */
 std::string reverse_complement(const std::string &sequence){
     // reverse complement map
-    std::unordered_map<char, char> complement = {
+    boost::unordered::unordered_map<char, char> complement = {
         {'A', 'T'}, 
         {'C', 'G'}, 
         {'G', 'C'}, 
@@ -220,12 +223,12 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
                                    const int &num_threads,
                                    const std::vector<int> &rmsd_range){
     // generate hash maps of encodings
-    std::unordered_map<unsigned int, std::pair<int, std::string>> hash_kmers = encode_kmers(results, kmer);
+    boost_umap hash_kmers = encode_kmers(results, kmer);
     std::vector<int> hash_ref = encode_ref(ref_seq, kmer);
     ref_seq.clear();
 
     // hash map of fwd and rc kmers
-    std::map<std::string, std::pair<std::string, int>> kmer_matrix;
+    boost::unordered::unordered_map<std::string, std::pair<std::string, int>> kmer_matrix;
     for(int i = 0; i < fwd_kmer_map.size(); i++){
         kmer_matrix[fwd_kmer_map[i]] = std::make_pair(rc_kmer_map[i], 0);
     }
@@ -237,93 +240,69 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       kmer_mean_all[i] = std::vector<double>(fwd_kmer_map.size(), 0);
     }
 
-    // Use # num_threads threads for all consecutive parallel regions
-    const int chunk_size = std::max(static_cast<int>(rmsd_len / num_threads), 1);
-    std::vector<std::future<void>> futures(num_threads);
+    Rcout << "Hashing done!" << "\n";
 
-    // Parallel loop
-    std::atomic<int> p_ind(0);
-    std::mutex mutex;
-    for(int t = 0; t < num_threads; t++){
-      futures[t] = std::async(std::launch::async, [&] {
-          int my_start, my_end;
+    // #pragma omp parallel for num_threads(4)    
+    for(int outer_ind = 0; outer_ind < rmsd_len; outer_ind++){
 
-          while(true){
-            std::lock_guard<std::mutex> lock(mutex);
-            my_start = p_ind;
-            p_ind += chunk_size;
-            my_end = std::min(static_cast<int>(rmsd_len), p_ind.load());
+      for(int j = 0; j < bp_pos.size(); j++){
+        // expand breakpoint positions into kmers
+        int start_pos = (int)bp_pos[j]+(int)rmsd_range[outer_ind]-(kmer/2);
 
-            if(my_start >= my_end){
-                break;
-            }
+        // find encoded string in hash_ref
+        int encoded_val = hash_ref[start_pos];
 
-            for(int outer_ind = my_start; outer_ind < my_end; outer_ind++){
-              for(int i = 0; i < bp_pos.size(); i++){
-                // expand breakpoint positions into kmers
-                int start_pos = (int)bp_pos[i]+(int)rmsd_range[outer_ind]-(kmer/2);
+        // update value count in hash_kmers
+        hash_kmers[encoded_val].first += 1;
+      }
 
-                // find encoded string in hash_ref
-                int encoded_val = hash_ref[start_pos];
+      // get relative kmer frequency count
+      for(const auto &kv : hash_kmers){
+        // loop over all kmers in encoded kmer map
+        const std::string& kmer_str = kv.second.second;
+        const int count = kv.second.first;
 
-                // update value count in hash_kmers
-                hash_kmers[encoded_val].first += 1;
-              }
+        // get reverse complement of kmer
+        const std::string rc_kmer = reverse_complement(kmer_str); 
 
-              // get relative kmer frequency count
-              for(const auto &kv : hash_kmers){
-                // loop over all kmers in encoded kmer map
-                const std::string& kmer_str = kv.second.second;
-                const int count = kv.second.first;
+        // check if fwd kmer
+        auto fwd_it = kmer_matrix.find(kmer_str);
+        if(fwd_it != kmer_matrix.end()){
+          std::get<1>(fwd_it->second) += count;
 
-                // get reverse complement of kmer
-                const std::string rc_kmer = reverse_complement(kmer_str); 
-
-                // check if fwd kmer
-                auto fwd_it = kmer_matrix.find(kmer_str);
-                if(fwd_it != kmer_matrix.end()){
-                  std::get<1>(fwd_it->second) += count;
-
-                  // check if palindrome
-                  if(kmer_str == rc_kmer){
-                    std::get<1>(fwd_it->second) += count;
-                  }
-                } else {
-                  auto rc_it = kmer_matrix.find(rc_kmer);
-                  std::get<1>(rc_it->second) += count;
-                }
-              }
-
-              // get total encode matching counts
-              int total_encode_matches = 0.0;
-              for(const auto &kv : kmer_matrix){
-                total_encode_matches += kv.second.second;
-              }
-
-              std::vector<double> kmer_counts;
-              kmer_counts.reserve(kmer_matrix.size());      
-              for(auto &kv : kmer_matrix){
-                double rel_count = (int)kv.second.second/(double)total_encode_matches;
-                kmer_counts.push_back(rel_count);
-
-                // reset counter
-                kv.second.second = 0;
-              }
-
-              // reset encoded kmer counts
-              for(auto &kv : hash_kmers){
-                kv.second.first = 0;
-              }
-
-              // push vector value map
-              kmer_mean_all[outer_ind] = kmer_counts;
-            }
+          // check if palindrome
+          if(kmer_str == rc_kmer){
+            std::get<1>(fwd_it->second) += count;
           }
-      });
-    }
+        } else {
+          auto rc_it = kmer_matrix.find(rc_kmer);
+          std::get<1>(rc_it->second) += count;
+        }
+      }
 
-    for(auto &f : futures){
-        f.wait();
+      // get total encode matching counts
+      int total_encode_matches = 0.0;
+      for(const auto &kv : kmer_matrix){
+        total_encode_matches += kv.second.second;
+      }
+
+      std::vector<double> kmer_counts;
+      kmer_counts.reserve(kmer_matrix.size());      
+      for(auto &kv : kmer_matrix){
+        double rel_count = (int)kv.second.second/(double)total_encode_matches;
+        kmer_counts.push_back(rel_count);
+
+        // reset counter
+        kv.second.second = 0;
+      }
+
+      // reset encoded kmer counts
+      for(auto &kv : hash_kmers){
+        kv.second.first = 0;
+      }
+
+      // push vector value map
+      kmer_mean_all[outer_ind] = kmer_counts;
     }
 
     // calculate rmsd between adjacent positions
