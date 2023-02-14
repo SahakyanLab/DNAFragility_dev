@@ -74,9 +74,6 @@ SequenceEffect <- R6::R6Class(
                     l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
                     cat(cur.msg, l, "\n", sep = "")
 
-                    # generate k-mer table
-                    private$generate_table(kmer = kmer)
-
                     # run RMSD calculations
                     private$run_rmsd(
                         rmsd.range = rmsd.range, 
@@ -159,6 +156,9 @@ SequenceEffect <- R6::R6Class(
         #' @field ref DNAStringSet of a human reference genome chromosome.
         ref = NULL,
 
+        #' @field ref_rmsd character vector of a human reference genome chromosome.
+        ref_rmsd = NULL,
+
         #' @field df_bp Data.Table of breakpoint positions for one chromosome.
         df_bp = NULL,
 
@@ -185,33 +185,17 @@ SequenceEffect <- R6::R6Class(
             )            
         },
 
-        #' @description 
-        #' A utility function to generate k-mers.
-        #' Then, only keeps first occurring k-mer in lexicological order.
-        #' @return None.
-        generate_table = function(kmer){
-            k.mers <- do.call(data.table::CJ, 
-                              rep(list(c("A", "C", "G", "T")), kmer))
-            private$kmer_list <- k.mers[, do.call(paste0, .SD)]
-            rev.comp <- as.character(
-                Biostrings::reverseComplement(Biostrings::DNAStringSet(private$kmer_list))
-            )
-            kmer_ref <- data.table('fwd' = private$kmer_list, 'rev.comp' = rev.comp)
-            kmer_ref[, cond := ifelse(seq(1:nrow(.SD)) < match(fwd, rev.comp), 
-            TRUE, ifelse(fwd == rev.comp, TRUE, FALSE))]
-            private$kmer_ref <- kmer_ref[cond == TRUE, .(fwd, rev.comp)]
-        },
-
         #' @description
         #' Get human reference genome file.
         #' @param ind Numeric vector of index subsetting org_file.
         #' @return None.
         get_ref = function(ind){
             ref.seq <- private$org_file[ind, `Reference genome folder`]
-            private$ref <- Biostrings::readDNAStringSet(
-                filepath = paste0("../../data/ref/", ref.seq, 
+            private$ref_rmsd <- read_compressed_fasta(
+                filename = paste0("../../data/ref/", ref.seq, 
                                   "/chr", self$chr, ".fasta.gz")
             )
+            private$ref <- Biostrings::DNAStringSet(private$ref_rmsd)
         },
 
         #' @description 
@@ -277,40 +261,20 @@ SequenceEffect <- R6::R6Class(
         #' @param kmer Numeric vector of kmer to perform calculation on.
         #' @return None.
         run_rmsd = function(rmsd.range, kmer){
-            if(private$cores > 1){
-                cl <- makeCluster(private$cores)
-                registerDoParallel(cl)
-                `%op%` <- `%dopar%`
-            } else {
-                `%op%` <- `%do%`
-                pb <- txtProgressBar(
-                    min = 1, 
-                    max = length(rmsd.range), 
-                    style = 3
-                )
-            }
+            # get all possible kmers
+            kmers <- generate_kmers(kmer = kmer)
 
-            freq <- foreach(i = 1:length(rmsd.range),
-                            .export = c(ls(globalenv()), "private", "self"),
-                            .packages = c("foreach", "data.table", "stringr", "R6"),
-                            .inorder = TRUE)%op%{
-                if(private$cores < 2) setTxtProgressBar(pb,i)
-                SequenceEffect$parent_env <- environment()
-                freq.vals <- private$calc_kmer_freq(ind = rmsd.range[i], kmer = kmer)
-                norm.vals <- freq.vals/sum(freq.vals, na.rm = TRUE)
-                return(list(freq.vals, norm.vals))
-            } %>% 
-            suppressWarnings() # ignore 'already exporting variables' warning from foreach
-            if(private$cores > 1){
-                stopImplicitCluster()
-                stopCluster(cl)
-            } else {
-                close(pb)
-                cat("\n")
-            }
-
-            freq.vals <- sapply(freq, `[[`, 1)
-            norm.vals <- sapply(freq, `[[`, 2)
+            # calculatea rmsd values 
+            rmsd.values <- calc_kmer_freq(
+                bp_pos = private$df_bp$start.pos,
+                results = kmers,
+                ref_seq = private$ref_rmsd,
+                kmer = kmer,
+                fwd_kmer_map = private$kmer_ref$fwd,
+                rc_kmer_map = private$kmer_ref$rev.comp,
+                num_threads = private$cores,
+                rmsd_range = rmsd.range
+            )
 
             # save absolute frequency values for motif analysis
             dir.create(
@@ -318,32 +282,6 @@ SequenceEffect <- R6::R6Class(
                 showWarnings = FALSE,
                 recursive = TRUE
             )
-            saveRDS(
-                object = freq.vals,
-                file = paste0(
-                    "../data/", private$bp_exp,
-                    ifelse(private$control, 
-                    paste0("/control_freq_rmsd_kmer_", 
-                           kmer, "_seed_", self$seed), 
-                    paste0("/freq_rmsd_kmer_", kmer)),
-                    ".Rdata")
-            )
-            # save normalised frequency values
-            saveRDS(
-                object = norm.vals,
-                file = paste0(
-                    "../data/", private$bp_exp,
-                    ifelse(private$control, 
-                    paste0("/control_normalised_freq_rmsd_kmer_", 
-                           kmer, "_seed_", self$seed),  
-                    paste0("/normalised_freq_rmsd_kmer_", kmer)),
-                    ".Rdata")
-            )
-
-            # save rmsd values
-            rmsd.values <- sapply(1:(dim(norm.vals)[2]-1), function(x){
-                private$calc_rmsd(norm.vals[, x], norm.vals[, (x+1)])
-            })
             saveRDS(
                 object = rmsd.values,
                 file = paste0(
@@ -354,61 +292,6 @@ SequenceEffect <- R6::R6Class(
                     paste0("/rmsd_kmer_", kmer)),
                     ".Rdata")
             )
-        },
-
-        #' @description
-        #' Calculate kmer frequencies at each shifted bp position.
-        #' @param ind Numeric vector of index subsetting org_file.
-        #' @param kmer Numeric vector of kmer to perform calculation on.
-        #' @return Data.Table of kmer frequencies.
-        calc_kmer_freq = function(ind, kmer){
-            dfcopy <- copy(private$df_bp)
-            dfcopy[, `:=`(start.pos = start.pos + ind)]
-            
-            if((kmer %% 2) == 0){
-                ending.pos <- ceiling((kmer-1)/2)
-                starting.pos <- (kmer-1)-ending.pos
-            } else {
-                interval <- (kmer-1)/2
-                starting.pos <- ending.pos <- interval
-            }
-
-            # obtain k-mers from alignment data
-            dfcopy[,`:=`(start = start.pos - starting.pos, end = start.pos + ending.pos)]
-            dfcopy[, start.pos := NULL]
-
-            # extract k-meric counts and relative frequencies
-            dfcopy[, `:=`(fwd = substring(text = private$ref, first = start, last = end))]
-
-            if("-" %in% unique(dfcopy$strand)){
-                dfcopy[strand == "-", fwd := paste(
-                    Biostrings::reverseComplement(Biostrings::DNAStringSet(fwd))
-                )]
-            }
-            dfcopy <- dfcopy[, .(n = .N), by = .(fwd)][!stringr::str_detect(
-                string = fwd, pattern = "N")]
-            
-            # account for strand symmetry
-            fwd.ind <- match(private$kmer_ref$fwd, dfcopy$fwd)
-            rev.comp.ind <- match(private$kmer_ref$rev.comp, dfcopy$fwd)
-            
-            # update data frame with dyad frequency count
-            private$kmer_ref[, `:=`(freq = dfcopy$n[fwd.ind] + dfcopy$n[rev.comp.ind])]
-            private$kmer_ref$freq[which(is.na(private$kmer_ref$freq))] <- 0
-            res <- private$kmer_ref$freq
-            private$kmer_ref[, freq := NULL]
-
-            # return data frame of k-mers with associated breakpoint frequencies
-            return(res)
-        },
-
-        #' @description
-        #' Calculate root mean squared deviation between two points.
-        #' @param a Numeric vector of k-mer frequencies.
-        #' @param b Numeric vector of k-mer frequencies.
-        #' @return Numeric vector of RMSD value.
-        calc_rmsd = function(a, b){
-            return(sqrt(mean((a-b)^2, na.rm = TRUE)))
         }
     )
 )
