@@ -1,4 +1,4 @@
-// [[Rcpp::plugins("cpp11")]]
+// [[Rcpp::plugins("cpp20")]]
 #include <Rcpp.h>
 #include <map>
 #include <zlib.h>
@@ -10,10 +10,7 @@
 #include "kseq.h"
 
 // fast hash map
-#include <boost/unordered_map.hpp>
-
-// // parallel for loop
-// #include "/usr/local/Cellar/libomp/15.0.7/include/omp.h"
+#include </Users/paddy/Documents/DPhil/github_repos/gtl/include/gtl/phmap.hpp>
 
 using namespace Rcpp;
 
@@ -26,7 +23,7 @@ typedef gzFile file_t;
 // alias for time stamps
 typedef std::chrono::duration<float> float_seconds;
 // mappings
-typedef boost::unordered::unordered_map<unsigned int, std::pair<int, std::string>> boost_umap;
+typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_umap;
 
 /**
  * Reads compressed fasta file.
@@ -124,8 +121,8 @@ std::vector<int> encode_ref(const std::string &ref_seq, int k) {
  * @param k size of kmer.
  * @return encoded kmers.
 */
-boost_umap encode_kmers(const std::vector<std::string> &results, int k){
-  boost_umap kmer_encodings;
+gtl_umap encode_kmers(const std::vector<std::string> &results, int k){
+  gtl_umap kmer_encodings;
 
   // Loop through each kmer
   for(int i = 0; i < results.size(); i++){
@@ -178,7 +175,7 @@ std::vector<std::string> generate_kmers(const int &kmer){
 */
 std::string reverse_complement(const std::string &sequence){
     // reverse complement map
-    boost::unordered::unordered_map<char, char> complement = {
+    gtl::flat_hash_map<char, char> complement = {
         {'A', 'T'}, 
         {'C', 'G'}, 
         {'G', 'C'}, 
@@ -223,24 +220,22 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
                                    const int &num_threads,
                                    const std::vector<int> &rmsd_range){
     // generate hash maps of encodings
-    boost_umap hash_kmers = encode_kmers(results, kmer);
+    gtl_umap hash_kmers = encode_kmers(results, kmer);
     std::vector<int> hash_ref = encode_ref(ref_seq, kmer);
     ref_seq.clear();
 
     // hash map of fwd and rc kmers
-    boost::unordered::unordered_map<std::string, std::pair<std::string, int>> kmer_matrix;
+    gtl::flat_hash_map<std::string, std::pair<std::string, int>> kmer_matrix;
     for(int i = 0; i < fwd_kmer_map.size(); i++){
         kmer_matrix[fwd_kmer_map[i]] = std::make_pair(rc_kmer_map[i], 0);
     }
 
     // init average relative kmer frequency
     int rmsd_len = rmsd_range.size();
-    std::map<int, std::vector<double>> kmer_mean_all;
+    gtl::flat_hash_map<int, std::vector<double>> kmer_mean_all;
     for(int i = 0; i < rmsd_len; i++){
       kmer_mean_all[i] = std::vector<double>(fwd_kmer_map.size(), 0);
     }
-
-    Rcout << "Hashing done!" << "\n";
 
     // #pragma omp parallel for num_threads(4)    
     for(int outer_ind = 0; outer_ind < rmsd_len; outer_ind++){
@@ -314,5 +309,6 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       double rmsd_result = rmsd(a, b);
       rmsd_vec[i] = rmsd_result;
     }
+
     return rmsd_vec;
 }
