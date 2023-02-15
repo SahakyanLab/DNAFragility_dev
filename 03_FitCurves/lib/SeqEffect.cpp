@@ -234,6 +234,7 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
     // get index of encoded kmers
     std::vector<int> k_encode_vec(hash_kmers.size());
     std::vector<std::string> k_string_vec(hash_kmers.size());
+    std::vector<std::string> k_rc_string_vec(hash_kmers.size());
     int ind = 0;
     for(auto &kv : hash_kmers){
         // get kmer
@@ -245,6 +246,7 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
         // and push into vector
         k_encode_vec[ind] = hash_val;
         k_string_vec[ind] = hash_kmer;
+        k_rc_string_vec[ind] = reverse_complement(hash_kmer);
 
         // update value by its index in map
         kv.second.first = ind;
@@ -285,12 +287,10 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       // get relative kmer frequency count
       for(int i = 0; i < k_encode_vec.size(); i++){
         // loop over all kmers in encoded kmer map
-        const std::string& kmer_str = k_string_vec[i];
+        const std::string &kmer_str = k_string_vec[i];
+        const std::string &rc_kmer = k_rc_string_vec[i];
         const int count = k_encode_vec[i];
-
-        // get reverse complement of kmer
-        const std::string rc_kmer = reverse_complement(kmer_str); 
-
+        
         // check if fwd kmer
         auto fwd_it = kmer_matrix.find(kmer_str);
         if(fwd_it != kmer_matrix.end()){
