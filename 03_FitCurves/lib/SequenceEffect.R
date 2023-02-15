@@ -74,6 +74,9 @@ SequenceEffect <- R6::R6Class(
                     l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
                     cat(cur.msg, l, "\n", sep = "")
 
+                    # generate k-mer table
+                    private$generate_table(kmer = kmer)
+
                     # run RMSD calculations
                     private$run_rmsd(
                         rmsd.range = rmsd.range, 
@@ -185,17 +188,36 @@ SequenceEffect <- R6::R6Class(
             )            
         },
 
+        #' @description 
+        #' A utility function to generate k-mers.
+        #' Then, only keeps first occurring k-mer in lexicological order.
+        #' @return None.
+        generate_table = function(kmer){
+            k.mers <- do.call(data.table::CJ, 
+                              rep(list(c("A", "C", "G", "T")), kmer))
+            private$kmer_list <- k.mers[, do.call(paste0, .SD)]
+            rev.comp <- as.character(
+                Biostrings::reverseComplement(Biostrings::DNAStringSet(private$kmer_list))
+            )
+            kmer_ref <- data.table('fwd' = private$kmer_list, 'rev.comp' = rev.comp)
+            kmer_ref[, cond := ifelse(seq(1:nrow(.SD)) < match(fwd, rev.comp), 
+            TRUE, ifelse(fwd == rev.comp, TRUE, FALSE))]
+            private$kmer_ref <- kmer_ref[cond == TRUE, .(fwd, rev.comp)]
+        },
+
         #' @description
         #' Get human reference genome file.
         #' @param ind Numeric vector of index subsetting org_file.
         #' @return None.
         get_ref = function(ind){
             ref.seq <- private$org_file[ind, `Reference genome folder`]
-            private$ref_rmsd <- read_compressed_fasta(
-                filename = paste0("../../data/ref/", ref.seq, 
-                                  "/chr", self$chr, ".fasta.gz")
+            private$ref_rmsd <- paste0(
+                "../../data/ref/", ref.seq, 
+                "/chr", self$chr, ".fasta.gz"
             )
-            private$ref <- Biostrings::DNAStringSet(private$ref_rmsd)
+            private$ref <- Biostrings::readDNAStringSet(
+                filepath = private$ref_rmsd
+            )
         },
 
         #' @description 
@@ -264,15 +286,13 @@ SequenceEffect <- R6::R6Class(
             # get all possible kmers
             kmers <- generate_kmers(kmer = kmer)
 
-            # calculatea rmsd values 
+            # calculate rmsd values 
             rmsd.values <- calc_kmer_freq(
                 bp_pos = private$df_bp$start.pos,
-                results = kmers,
-                ref_seq = private$ref_rmsd,
+                filename = private$ref_rmsd,
                 kmer = kmer,
                 fwd_kmer_map = private$kmer_ref$fwd,
                 rc_kmer_map = private$kmer_ref$rev.comp,
-                num_threads = private$cores,
                 rmsd_range = rmsd.range
             )
 

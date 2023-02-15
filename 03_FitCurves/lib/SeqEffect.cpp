@@ -218,7 +218,6 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
                     const int &kmer,
                     const std::vector<std::string> &fwd_kmer_map,
                     const std::vector<std::string> &rc_kmer_map,
-                    const int &num_threads,
                     const std::vector<int> &rmsd_range){
     // read compressed fasta file
     std::vector<std::string> ref_seq_vec = read_compressed_fasta(filename);
