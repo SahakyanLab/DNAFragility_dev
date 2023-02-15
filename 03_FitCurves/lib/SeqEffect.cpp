@@ -131,7 +131,7 @@ gtl_umap encode_kmers(const std::vector<std::string> &all_kmers, int k){
             hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)all_kmers[i][j]];
         }
 
-        // k-mer encoding and init its index
+        // key: k-mer encoding. value: [init index at 0, kmer]
         kmer_encodings[hash] = std::make_pair(0, all_kmers[i]);
 
         // Update the hash value for the current k-mer
@@ -231,7 +231,7 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
     gtl_umap hash_kmers = encode_kmers(all_kmers, kmer);
 
     // get index of encoded kmers
-    std::vector<int> k_encode_vec(hash_kmers.size());
+    std::vector<int> k_count_vec(hash_kmers.size(), 0);
     std::vector<std::string> k_string_vec(hash_kmers.size());
     std::vector<std::string> k_rc_string_vec(hash_kmers.size());
     int ind = 0;
@@ -239,11 +239,7 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
         // get kmer
         std::string hash_kmer = kv.second.second;
 
-        // get kmer encoding
-        int hash_val = kv.second.first;
-
         // and push into vector
-        k_encode_vec[ind] = hash_val;
         k_string_vec[ind] = hash_kmer;
         k_rc_string_vec[ind] = reverse_complement(hash_kmer);
 
@@ -279,17 +275,17 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
         // find encoded string in hash_ref
         int encoded_val_ind = hash_ref[start_pos];
 
-        // update value count in k_encode_vec
-        k_encode_vec[encoded_val_ind]++;
+        // update value count in k_count_vec
+        k_count_vec[encoded_val_ind]++;
       }
 
       // get relative kmer frequency count
-      for(int i = 0; i < k_encode_vec.size(); i++){
+      for(int i = 0; i < k_count_vec.size(); i++){
         // loop over all kmers in encoded kmer map
         const std::string &kmer_str = k_string_vec[i];
         const std::string &rc_kmer = k_rc_string_vec[i];
-        const int count = k_encode_vec[i];
-        
+        const int count = k_count_vec[i];
+
         // check if fwd kmer
         auto fwd_it = kmer_matrix.find(kmer_str);
         if(fwd_it != kmer_matrix.end()){
@@ -322,8 +318,8 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       }
 
       // reset encoded kmer counts
-      for(int i = 0; i < k_encode_vec.size(); i++){
-        k_encode_vec[i] = 0;
+      for(int i = 0; i < k_count_vec.size(); i++){
+        k_count_vec[i] = 0;
       }
 
       // push vector value map
