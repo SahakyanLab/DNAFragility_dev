@@ -23,6 +23,14 @@ typedef gzFile file_t;
 typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_umap;
 
 /**
+ * Struct to store first lexicographically occurring kmers.
+*/
+struct KmerTable {
+  std::vector<std::string> fwd_kmers;
+  std::vector<std::string> rc_kmers;
+};
+
+/**
  * Define the encoding for each base ATGC, which represents 
  * the encoding of each character in the ASCII character set.
  * 
@@ -63,7 +71,6 @@ int readfn(file_t f, char *buf, int len) {
  * @param filename name and location of fasta.gz file.
  * @return List of fasta sequences.
 */
-// [[Rcpp::export]]
 std::vector<std::string> read_compressed_fasta(const std::string &filename) {
     std::vector<std::string> ref_seq;
 
@@ -188,6 +195,39 @@ std::string reverse_complement(const std::string &sequence){
 }
 
 /**
+ * Generates a table of forward and reverse complement kmers
+ * of first lexicographically occuring kmers.
+ * @param kmer size of kmer.
+ * @return kmer table struct.
+*/
+KmerTable get_lexicographic_kmertable(const int &kmer){
+  // init structure
+  KmerTable kmer_table;
+
+  // generate kmers
+  kmer_table.fwd_kmers = generate_kmers(kmer);
+  kmer_table.rc_kmers.resize(kmer_table.fwd_kmers.size());
+  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
+    kmer_table.rc_kmers[i] = reverse_complement(kmer_table.fwd_kmers[i]);
+  }
+
+  // only retain first lexicographically occurring kmer
+  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
+    bool is_fwd_first = (kmer_table.fwd_kmers[i] <= kmer_table.rc_kmers[i]);
+    if(!is_fwd_first){
+        // Remove the corresponding element from both fwd_kmers and rc_kmers
+        kmer_table.fwd_kmers.erase(kmer_table.fwd_kmers.begin()+i);
+        kmer_table.rc_kmers.erase(kmer_table.rc_kmers.begin()+i);
+        
+        // Decrement i by 1 to avoid skipping the next element
+        i--;
+    }
+  }
+
+  return kmer_table;
+}
+
+/**
  * Calulate rmsd between two adjacent positions.
  * @param a normalised kmer frequencies.
  * @param b normalised kmer frequencies.
@@ -214,11 +254,9 @@ double rmsd(const std::vector<double> &a,
 
 // [[Rcpp::export]]
 std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
-                    const std::string &filename,
-                    const int &kmer,
-                    const std::vector<std::string> &fwd_kmer_map,
-                    const std::vector<std::string> &rc_kmer_map,
-                    const std::vector<int> &rmsd_range){
+                                   const std::string &filename,
+                                   const int &kmer,
+                                   const std::vector<int> &rmsd_range){
     // read compressed fasta file
     std::vector<std::string> ref_seq_vec = read_compressed_fasta(filename);
     std::string ref_seq = ref_seq_vec[0];
@@ -254,16 +292,17 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
     ref_seq.clear();
     
     // hash map of fwd and rc kmers
+    KmerTable kmer_table = get_lexicographic_kmertable(kmer);
     gtl::flat_hash_map<std::string, std::pair<std::string, int>> kmer_matrix;
-    for(int i = 0; i < fwd_kmer_map.size(); i++){
-        kmer_matrix[fwd_kmer_map[i]] = std::make_pair(rc_kmer_map[i], 0);
+    for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
+        kmer_matrix[kmer_table.fwd_kmers[i]] = std::make_pair(kmer_table.rc_kmers[i], 0);
     }
 
     // init average relative kmer frequency
     int rmsd_len = rmsd_range.size();
     gtl::flat_hash_map<int, std::vector<double>> kmer_mean_all;
     for(int i = 0; i < rmsd_len; i++){
-      kmer_mean_all[i] = std::vector<double>(fwd_kmer_map.size(), 0);
+      kmer_mean_all[i] = std::vector<double>(kmer_table.fwd_kmers.size(), 0);
     }
 
     for(int outer_ind = 0; outer_ind < rmsd_len; outer_ind++){
