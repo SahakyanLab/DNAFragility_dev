@@ -2,7 +2,6 @@
 #include <Rcpp.h>
 #include <map>
 #include <zlib.h>
-#include <chrono>
 #include <algorithm>
 #include <future>
 
@@ -10,7 +9,7 @@
 #include "kseq.h"
 
 // fast hash map
-#include </Users/paddy/Documents/DPhil/github_repos/gtl/include/gtl/phmap.hpp>
+#include <gtl/include/gtl/phmap.hpp>
 
 using namespace Rcpp;
 
@@ -20,10 +19,33 @@ KSEQ_INIT(gzFile, gzread)
 
 // create alias for gzFile as file_t
 typedef gzFile file_t;
-// alias for time stamps
-typedef std::chrono::duration<float> float_seconds;
 // mappings
 typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_umap;
+
+/**
+ * Define the encoding for each base ATGC, which represents 
+ * the encoding of each character in the ASCII character set.
+ * 
+ * The array is indexed by the ASCII value of each character, 
+ * with the first 128 values covering the standard ASCII character set.
+ * 
+ * The encoding of each character is represented by a single byte, 
+ * with the possible values being 0, 1, 2, or 3.
+*/
+constexpr char base_to_encoding[(unsigned char)128] = {
+  /* 0-127 */
+  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 2, 1,  0, 0, 0, 2,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 0, 0,  3, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 2, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
+};
+
+// Initialize the hash value
+unsigned int hash = 5381;
 
 /**
  * Reads compressed fasta file.
@@ -63,37 +85,12 @@ std::vector<std::string> read_compressed_fasta(const std::string &filename) {
 }
 
 /**
- * Define the encoding for each base ATGC, which represents 
- * the encoding of each character in the ASCII character set.
- * 
- * The array is indexed by the ASCII value of each character, 
- * with the first 128 values covering the standard ASCII character set.
- * 
- * The encoding of each character is represented by a single byte, 
- * with the possible values being 0, 1, 2, or 3.
-*/
-constexpr char base_to_encoding[(unsigned char)128] = {
-  /* 0-127 */
-  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 2, 1,  0, 0, 0, 2,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 0, 0,  3, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 2, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
-};
-
-// Initialize the hash value
-unsigned int hash = 5381;
-
-/**
  * Encode genome sequence.
  * @param ref_seq reference sequence.
  * @param k size of kmer.
  * @return encoded sequence.
 */
-std::vector<int> encode_ref(const std::string &ref_seq, int k) {
+std::vector<int> encode_ref(const std::string &ref_seq, gtl_umap &hash_kmers,int k){
   // Reserve space for the number of kmers in the reference sequence
   int num_kmers = ref_seq.length() - k + 1;
   std::vector<int> ref_encodings(num_kmers);
@@ -105,9 +102,12 @@ std::vector<int> encode_ref(const std::string &ref_seq, int k) {
     for(int j = 0; j < k; j++){
       hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)ref_seq[i+j]];
     }
+
+    // find index of encoded kmer in hash_kmers
+    int ind = hash_kmers[hash].first;
     
     // Add the k-mer encoding and its starting position to the map
-    ref_encodings[i] = hash;
+    ref_encodings[i] = ind;
     
     // Update the hash value for the current k-mer
     hash = 5381;
@@ -117,36 +117,35 @@ std::vector<int> encode_ref(const std::string &ref_seq, int k) {
 
 /**
  * Encode each kmer sequence.
- * @param results vector of kmers.
+ * @param all_kmers vector of kmers.
  * @param k size of kmer.
  * @return encoded kmers.
 */
-gtl_umap encode_kmers(const std::vector<std::string> &results, int k){
-  gtl_umap kmer_encodings;
+gtl_umap encode_kmers(const std::vector<std::string> &all_kmers, int k){
+    gtl_umap kmer_encodings;
 
-  // Loop through each kmer
-  for(int i = 0; i < results.size(); i++){
-    
-    // Update the hash value for the current k-mer
-    for(int j = 0; j < k; j++){
-      hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)results[i][j]];
+    // Loop through each kmer
+    for(int i = 0; i < all_kmers.size(); i++){
+        // Update the hash value for the current k-mer
+        for(int j = 0; j < k; j++){
+            hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)all_kmers[i][j]];
+        }
+
+        // k-mer encoding and init its index
+        kmer_encodings[hash] = std::make_pair(0, all_kmers[i]);
+
+        // Update the hash value for the current k-mer
+        hash = 5381;
     }
-
-    // Add the k-mer encoding and its starting position to the map
-    kmer_encodings[hash] = std::make_pair(0, results[i]);
-
-    // Update the hash value for the current k-mer
-    hash = 5381;
-  }
-  return kmer_encodings;
+    return kmer_encodings;
 }
 
 std::string kmers(int i, const int &kmer){
-  static const char* DNA = "ATGC";
-  if(kmer == 0){
-    return std::string();
-  }
-  return kmers(i/4, kmer-1) + DNA[i%4];
+    static const char* DNA = "ATGC";
+    if(kmer == 0){
+        return std::string();
+    }
+    return kmers(i/4, kmer-1) + DNA[i%4];
 }
 
 /**
@@ -156,16 +155,16 @@ std::string kmers(int i, const int &kmer){
 */
 // [[Rcpp::export]]
 std::vector<std::string> generate_kmers(const int &kmer){
-  std::vector<std::string> results(1 << (2*kmer));
+  std::vector<std::string> all_kmers(1 << (2*kmer));
   
   for(int i = 0; i < (1 << (2*kmer)); i++){
-    results[i] = kmers(i, kmer);
+    all_kmers[i] = kmers(i, kmer);
   }
 
   // sort kmer vector alphabetically
-  std::sort(results.begin(), results.end());
+  std::sort(all_kmers.begin(), all_kmers.end());
 
-  return results;
+  return all_kmers;
 }
 
 /**
@@ -190,9 +189,12 @@ std::string reverse_complement(const std::string &sequence){
 
 /**
  * Calulate rmsd between two adjacent positions.
+ * @param a normalised kmer frequencies.
+ * @param b normalised kmer frequencies.
+ * @return root-mean-square deviation between a and b.
 */
-double rmsd(const std::vector<double>& a, 
-            const std::vector<double>& b){
+double rmsd(const std::vector<double> &a, 
+            const std::vector<double> &b){
     std::vector<double> diff(a.size());
     std::transform(
       a.begin(), a.end(), 
@@ -212,18 +214,48 @@ double rmsd(const std::vector<double>& a,
 
 // [[Rcpp::export]]
 std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
-                                   const std::vector<std::string> &results,
-                                   std::string &ref_seq,
-                                   const int &kmer,
-                                   const std::vector<std::string> &fwd_kmer_map,
-                                   const std::vector<std::string> &rc_kmer_map,
-                                   const int &num_threads,
-                                   const std::vector<int> &rmsd_range){
-    // generate hash maps of encodings
-    gtl_umap hash_kmers = encode_kmers(results, kmer);
-    std::vector<int> hash_ref = encode_ref(ref_seq, kmer);
-    ref_seq.clear();
+                    const std::string &filename,
+                    const int &kmer,
+                    const std::vector<std::string> &fwd_kmer_map,
+                    const std::vector<std::string> &rc_kmer_map,
+                    const int &num_threads,
+                    const std::vector<int> &rmsd_range){
+    // read compressed fasta file
+    std::vector<std::string> ref_seq_vec = read_compressed_fasta(filename);
+    std::string ref_seq = ref_seq_vec[0];
+    ref_seq_vec.clear();
 
+    // generate kmers
+    const std::vector<std::string> all_kmers = generate_kmers(kmer);
+    
+    // generate hash maps of kmer encodings
+    gtl_umap hash_kmers = encode_kmers(all_kmers, kmer);
+
+    // get index of encoded kmers
+    std::vector<int> k_encode_vec(hash_kmers.size());
+    std::vector<std::string> k_string_vec(hash_kmers.size());
+    int ind = 0;
+    for(auto &kv : hash_kmers){
+        // get kmer
+        std::string hash_kmer = kv.second.second;
+
+        // get kmer encoding
+        int hash_val = kv.second.first;
+
+        // and push into vector
+        k_encode_vec[ind] = hash_val;
+        k_string_vec[ind] = hash_kmer;
+
+        // update value by its index in map
+        kv.second.first = ind;
+
+        ind++;
+    }
+
+    // generate hash maps of kmer encodings for reference sequence
+    std::vector<int> hash_ref = encode_ref(ref_seq, hash_kmers, kmer);
+    ref_seq.clear();
+    
     // hash map of fwd and rc kmers
     gtl::flat_hash_map<std::string, std::pair<std::string, int>> kmer_matrix;
     for(int i = 0; i < fwd_kmer_map.size(); i++){
@@ -237,7 +269,6 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       kmer_mean_all[i] = std::vector<double>(fwd_kmer_map.size(), 0);
     }
 
-    // #pragma omp parallel for num_threads(4)    
     for(int outer_ind = 0; outer_ind < rmsd_len; outer_ind++){
 
       for(int j = 0; j < bp_pos.size(); j++){
@@ -245,17 +276,17 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
         int start_pos = (int)bp_pos[j]+(int)rmsd_range[outer_ind]-(kmer/2);
 
         // find encoded string in hash_ref
-        int encoded_val = hash_ref[start_pos];
+        int encoded_val_ind = hash_ref[start_pos];
 
-        // update value count in hash_kmers
-        hash_kmers[encoded_val].first += 1;
+        // update value count in k_encode_vec
+        k_encode_vec[encoded_val_ind]++;
       }
 
       // get relative kmer frequency count
-      for(const auto &kv : hash_kmers){
+      for(int i = 0; i < k_encode_vec.size(); i++){
         // loop over all kmers in encoded kmer map
-        const std::string& kmer_str = kv.second.second;
-        const int count = kv.second.first;
+        const std::string& kmer_str = k_string_vec[i];
+        const int count = k_encode_vec[i];
 
         // get reverse complement of kmer
         const std::string rc_kmer = reverse_complement(kmer_str); 
@@ -292,8 +323,8 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       }
 
       // reset encoded kmer counts
-      for(auto &kv : hash_kmers){
-        kv.second.first = 0;
+      for(int i = 0; i < k_encode_vec.size(); i++){
+        k_encode_vec[i] = 0;
       }
 
       // push vector value map
