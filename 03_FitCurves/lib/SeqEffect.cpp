@@ -1,9 +1,8 @@
-// [[Rcpp::plugins("cpp20")]]
+// [[Rcpp::plugins("cpp17")]]
 #include <Rcpp.h>
 #include <map>
 #include <zlib.h>
 #include <algorithm>
-#include <future>
 
 // for fast loading of fasta/q files
 #include "kseq.h"
