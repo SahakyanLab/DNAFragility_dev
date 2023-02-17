@@ -256,7 +256,7 @@ SequenceEffect <- R6::R6Class(
             rmsd.values <- calc_kmer_freq(
                 bp_pos = private$df_bp$start.pos,
                 filename = private$ref_rmsd,
-                kmer = kmer,
+                k = kmer,
                 rmsd_range = rmsd.range
             )
 
