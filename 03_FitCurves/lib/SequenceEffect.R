@@ -184,9 +184,12 @@ SequenceEffect <- R6::R6Class(
                 "../../data/ref/", ref.seq, 
                 "/chr", self$chr, ".fasta.gz"
             )
-            private$ref <- Biostrings::readDNAStringSet(
-                filepath = private$ref_rmsd
-            )
+            
+            if(private$control){
+                private$ref <- Biostrings::readDNAStringSet(
+                    filepath = private$ref_rmsd
+                )
+            }
         },
 
         #' @description 
@@ -256,7 +259,7 @@ SequenceEffect <- R6::R6Class(
             rmsd.values <- calc_kmer_freq(
                 bp_pos = private$df_bp$start.pos,
                 filename = private$ref_rmsd,
-                k = kmer,
+                kmer = kmer,
                 rmsd_range = rmsd.range
             )
 

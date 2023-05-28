@@ -1,7 +1,6 @@
 // [[Rcpp::plugins("cpp17")]]
 #include <Rcpp.h>
 #include <zlib.h>
-#include <chrono>
 #include <algorithm>
 
 // for fast loading of fasta/q files
@@ -18,10 +17,8 @@ KSEQ_INIT(gzFile, gzread)
 
 // create alias for gzFile as file_t
 typedef gzFile file_t;
-// alias for time stamps
-typedef std::chrono::duration<float> float_seconds;
 // mappings
-typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_hash_kmers;
+typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_kmer_map;
 
 /**
  * Struct to store first lexicographically occurring kmers.
@@ -29,15 +26,6 @@ typedef gtl::flat_hash_map<unsigned int, std::pair<int, std::string>> gtl_hash_k
 struct KmerTable {
   std::vector<std::string> fwd_kmers;
   std::vector<std::string> rc_kmers;
-};
-
-/**
- * Struct for storing hash kmers, fwd and rc kmers.
-*/
-struct KmerEncoding {
-    gtl_hash_kmers kmer_encodings;
-    std::vector<std::string> k_string_vec;
-    std::vector<std::string> k_rc_string_vec;
 };
 
 /**
@@ -61,105 +49,6 @@ constexpr char base_to_encoding[(unsigned char)128] = {
   0, 2, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
   0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
 };
-
-/**
- * Hashes a kmer string.
- * @param vec string to hash.
- * @param k encoding the string into size k.
- * @param i current index of the iterations.
- * @return hashed string
-*/
-inline unsigned int hash_func(const std::string &vec, int &k, int i = 0){
-    // reset hash
-    unsigned int hash = 5381;
-
-    // Update the hash value for the current k-mer
-    for(int j = 0; j < k; j++){
-      hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)vec[i+j]];
-    }
-
-    return hash;
-}
-
-std::string kmers(int i, const int &k){
-    static const char* DNA = "ATGC";
-    if(k == 0){
-        return std::string();
-    }
-    return kmers(i/4, k-1) + DNA[i%4];
-}
-
-/**
- * Generate all possible kmer combinations.
- * @param k size of kmer
- * @return all kmers.
-*/
-// [[Rcpp::export]]
-std::vector<std::string> generate_kmers(const int &k){
-  std::vector<std::string> all_kmers(1 << (2*k));
-  
-  for(int i = 0; i < (1 << (2*k)); i++){
-    all_kmers[i] = kmers(i, k);
-  }
-
-  // sort kmer vector alphabetically
-  std::sort(all_kmers.begin(), all_kmers.end());
-
-  return all_kmers;
-}
-
-/**
- * Get reverse complement of a DNA string.
- * @param sequence kmer broken after aligning read with de novo sequence/
- * @return reverse_seq reverse complement of sequence.
-*/
-std::string reverse_complement(const std::string &sequence){
-    // reverse complement map
-    gtl::flat_hash_map<char, char> complement = {
-        {'A', 'T'}, 
-        {'C', 'G'}, 
-        {'G', 'C'}, 
-        {'T', 'A'}
-    };
-    std::string reverse_seq(sequence.rbegin(), sequence.rend());
-    for(char &c : reverse_seq){
-        c = complement[c];
-    }
-    return reverse_seq;
-}
-
-/**
- * Generates a table of forward and reverse complement kmers
- * of first lexicographically occuring kmers.
- * @param k size of kmer.
- * @return kmer table struct.
-*/
-KmerTable get_lexicographic_kmertable(const int &k){
-  // init structure
-  KmerTable kmer_table;
-
-  // generate kmers
-  kmer_table.fwd_kmers = generate_kmers(k);
-  kmer_table.rc_kmers.resize(kmer_table.fwd_kmers.size());
-  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
-    kmer_table.rc_kmers[i] = reverse_complement(kmer_table.fwd_kmers[i]);
-  }
-
-  // only retain first lexicographically occurring kmer
-  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
-    bool is_fwd_first = (kmer_table.fwd_kmers[i] <= kmer_table.rc_kmers[i]);
-    if(!is_fwd_first){
-        // Remove the corresponding element from both fwd_kmers and rc_kmers
-        kmer_table.fwd_kmers.erase(kmer_table.fwd_kmers.begin()+i);
-        kmer_table.rc_kmers.erase(kmer_table.rc_kmers.begin()+i);
-        
-        // Decrement i by 1 to avoid skipping the next element
-        i--;
-    }
-  }
-
-  return kmer_table;
-}
 
 /**
  * Reads compressed fasta file.
@@ -200,22 +89,24 @@ std::vector<std::string> read_compressed_fasta(const std::string &filename) {
 /**
  * Encode genome sequence.
  * @param ref_seq reference sequence.
- * @param hash_kmers encoded kmers.
  * @param k size of kmer.
  * @return encoded sequence.
 */
-std::vector<int> encode_refseq(
-  const std::string &ref_seq, 
-  gtl_hash_kmers &hash_kmers, 
-  int k){
-
+std::vector<int> encode_ref(const std::string &ref_seq, gtl_kmer_map &hash_kmers,int k){
   // Reserve space for the number of kmers in the reference sequence
-  int num_kmers = ref_seq.length()-k+1;
+  int num_kmers = ref_seq.length() - k + 1;
   std::vector<int> ref_encodings(num_kmers);
 
   // Loop through the reference sequence
-  for(int i = 0; i <= ref_seq.length()-k; i++){
-    unsigned int hash = hash_func(ref_seq, k, i);
+  for(int i = 0; i <= ref_seq.length() - k; i++){
+    // reset hash
+    unsigned int hash = 5381;
+    
+    // Update the hash value for the current k-mer
+    
+    for(int j = 0; j < k; j++){
+      hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)ref_seq[i+j]];
+    }
 
     // find index of encoded kmer in hash_kmers
     int ind = hash_kmers[hash].first;
@@ -232,36 +123,104 @@ std::vector<int> encode_refseq(
  * @param k size of kmer.
  * @return encoded kmers.
 */
-KmerEncoding encode_kmers(const std::vector<std::string> &all_kmers, int k){
-    KmerEncoding kmer_encoding;
+gtl_kmer_map encode_kmers(const std::vector<std::string> &all_kmers, int k){
+    gtl_kmer_map kmer_encodings;
 
     // Loop through each kmer
     for(int i = 0; i < all_kmers.size(); i++){
-      unsigned int hash = hash_func(all_kmers[i], k);
+      // reset hash
+      unsigned int hash = 5381;
+
+      // Update the hash value for the current k-mer
+      for(int j = 0; j < k; j++){
+          hash = ((hash << 5) + hash) + base_to_encoding[(unsigned char)all_kmers[i][j]];
+      }
 
       // key: k-mer encoding. value: [init index at 0, kmer]
-      kmer_encoding.kmer_encodings[hash] = std::make_pair(0, all_kmers[i]);
+      kmer_encodings[hash] = std::make_pair(0, all_kmers[i]);
     }
+    return kmer_encodings;
+}
 
-    // get index of encoded kmers
-    kmer_encoding.k_string_vec.resize(kmer_encoding.kmer_encodings.size());
-    kmer_encoding.k_rc_string_vec.resize(kmer_encoding.kmer_encodings.size());
-    int ind = 0;
-    for(auto &kv : kmer_encoding.kmer_encodings){
-        // get kmer
-        std::string hash_kmer = kv.second.second;
-
-        // and push into vector
-        kmer_encoding.k_string_vec[ind] = hash_kmer;
-        kmer_encoding.k_rc_string_vec[ind] = reverse_complement(hash_kmer);
-
-        // update value by its index in map
-        kv.second.first = ind;
-
-        ind++;
+std::string kmers(int i, const int &kmer){
+    static const char* DNA = "ATGC";
+    if(kmer == 0){
+        return std::string();
     }
+    return kmers(i/4, kmer-1) + DNA[i%4];
+}
 
-    return kmer_encoding;
+/**
+ * Generate all possible kmer combinations.
+ * @param kmer size of kmer
+ * @return all kmers.
+*/
+// [[Rcpp::export]]
+std::vector<std::string> generate_kmers(const int &kmer){
+  std::vector<std::string> all_kmers(1 << (2*kmer));
+  
+  for(int i = 0; i < (1 << (2*kmer)); i++){
+    all_kmers[i] = kmers(i, kmer);
+  }
+
+  // sort kmer vector alphabetically
+  std::sort(all_kmers.begin(), all_kmers.end());
+
+  return all_kmers;
+}
+
+/**
+ * Get reverse complement of a DNA string.
+ * @param sequence kmer broken after aligning read with de novo sequence/
+ * @return reverse_seq reverse complement of sequence.
+*/
+std::string reverse_complement(const std::string &sequence){
+    // reverse complement map
+    gtl::flat_hash_map<char, char> complement = {
+        {'A', 'T'}, 
+        {'C', 'G'}, 
+        {'G', 'C'}, 
+        {'T', 'A'}
+    };
+    std::string reverse_seq(sequence.rbegin(), sequence.rend());
+    for(char &c : reverse_seq){
+        c = complement[c];
+    }
+    return reverse_seq;
+}
+
+/**
+ * Generates a table of forward and reverse complement kmers
+ * of first lexicographically occuring kmers.
+ * @param all_kmers all generated forward and rev comp kmers.
+ * @param kmer size of kmer.
+ * @return kmer table struct.
+*/
+KmerTable get_lexicographic_kmertable(const std::vector<std::string> &all_kmers, const int &kmer){
+  // init structure
+  KmerTable kmer_table;
+
+  // generate kmers
+  kmer_table.fwd_kmers = all_kmers;
+  kmer_table.rc_kmers.resize(kmer_table.fwd_kmers.size());
+  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
+    kmer_table.rc_kmers[i] = reverse_complement(kmer_table.fwd_kmers[i]);
+  }
+
+  // only retain first lexicographically occurring kmer
+  for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
+    bool is_fwd_first = (kmer_table.fwd_kmers[i] <= kmer_table.rc_kmers[i]);
+    if(!is_fwd_first){
+        // Remove the corresponding element from both fwd_kmers and rc_kmers
+        kmer_table.fwd_kmers.erase(kmer_table.fwd_kmers.begin()+i);
+        kmer_table.rc_kmers.erase(kmer_table.rc_kmers.begin()+i);
+        
+        // Decrement i by 1 to avoid skipping the next element
+        i--;
+    }
+  }
+
+  return kmer_table;
 }
 
 /**
@@ -289,40 +248,47 @@ double rmsd(const std::vector<double> &a,
     return std::sqrt(sum_sq/a.size());
 }
 
-/**
- * Calculate kmer frequencies at each shifted breakpoint position.
- * @param bp_pos all breakpoints at single nucleotide resolution.
- * @param filename file name of the reference genome.
- * @param k size of breakage kmer.
- * @param rmsd_range range to calculate sequence context influence.
- * @return rmsd between adjacent breakpoint positions.
-*/
 // [[Rcpp::export]]
-std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
+std::vector<double> calc_kmer_freq(const std::vector<int> &bp_pos,
                                    const std::string &filename,
-                                   const int &k,
+                                   const int &kmer,
                                    const std::vector<int> &rmsd_range){
-
     // read compressed fasta file
     std::vector<std::string> ref_seq_vec = read_compressed_fasta(filename);
     std::string ref_seq = ref_seq_vec[0];
     ref_seq_vec.clear();
 
     // generate kmers
-    const std::vector<std::string> all_kmers = generate_kmers(k);
+    const std::vector<std::string> all_kmers = generate_kmers(kmer);
     
     // generate hash maps of kmer encodings
-    KmerEncoding kmer_encoding = encode_kmers(all_kmers, k);
-    gtl_hash_kmers hash_kmers = kmer_encoding.kmer_encodings;
-    std::vector<std::string> k_string_vec = kmer_encoding.k_string_vec;
-    std::vector<std::string> k_rc_string_vec = kmer_encoding.k_rc_string_vec;
+    gtl_kmer_map hash_kmers = encode_kmers(all_kmers, kmer);
+
+    // get index of encoded kmers
+    std::vector<int> k_count_vec(hash_kmers.size(), 0);
+    std::vector<std::string> k_string_vec(hash_kmers.size());
+    std::vector<std::string> k_rc_string_vec(hash_kmers.size());
+    int ind = 0;
+    for(auto &kv : hash_kmers){
+        // get kmer
+        std::string hash_kmer = kv.second.second;
+
+        // and push into vector
+        k_string_vec[ind] = hash_kmer;
+        k_rc_string_vec[ind] = reverse_complement(hash_kmer);
+
+        // update value by its index in map
+        kv.second.first = ind;
+
+        ind++;
+    }
 
     // generate hash maps of kmer encodings for reference sequence
-    std::vector<int> hash_refseq = encode_refseq(ref_seq, hash_kmers, k);
+    std::vector<int> hash_ref = encode_ref(ref_seq, hash_kmers, kmer);
     ref_seq.clear();
     
     // hash map of fwd and rc kmers
-    KmerTable kmer_table = get_lexicographic_kmertable(k);
+    KmerTable kmer_table = get_lexicographic_kmertable(all_kmers, kmer);
     gtl::flat_hash_map<std::string, std::pair<std::string, int>> kmer_matrix;
     for(int i = 0; i < kmer_table.fwd_kmers.size(); i++){
         kmer_matrix[kmer_table.fwd_kmers[i]] = std::make_pair(kmer_table.rc_kmers[i], 0);
@@ -335,17 +301,14 @@ std::vector<double> calc_kmer_freq(std::vector<int> &bp_pos,
       kmer_mean_all[i] = std::vector<double>(kmer_table.fwd_kmers.size(), 0);
     }
 
-    // init kmer count vector
-    std::vector<int> k_count_vec(hash_kmers.size(), 0);
-
     for(int outer_ind = 0; outer_ind < rmsd_len; outer_ind++){
 
       for(int j = 0; j < bp_pos.size(); j++){
         // expand breakpoint positions into kmers
-        int start_pos = (int)bp_pos[j]+(int)rmsd_range[outer_ind]-(k/2);
+        int start_pos = (int)bp_pos[j]+(int)rmsd_range[outer_ind]-(kmer/2);
 
-        // find encoded string in hash_refseq
-        int encoded_val_ind = hash_refseq[start_pos];
+        // find encoded string in hash_ref
+        int encoded_val_ind = hash_ref[start_pos];
 
         // update value count in k_count_vec
         k_count_vec[encoded_val_ind]++;
