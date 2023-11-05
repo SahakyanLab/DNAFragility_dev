@@ -8,22 +8,40 @@ FitCurves <- R6::R6Class(
         #' to process from org_file. If NULL, all exp will be processed.
         which_exp_ind = NULL,
 
-        initialize = function(chr, which_exp_ind, from_cluster){
+        #' @field results List of results stored if return_vals is TRUE.
+        results = NULL,
+
+        initialize = function(chr, which_exp_ind, from_cluster, return_vals, rmsd_values){
             if(!missing(chr)) self$chr <- chr
             if(!missing(which_exp_ind)) self$which_exp_ind <- which_exp_ind
             if(!missing(from_cluster)) private$from_cluster <- from_cluster
+            if(!missing(return_vals)) private$return_vals <- return_vals
             
             # get full org_file.csv
             private$get_org_file()
 
-            if(is.null(self$which_exp_ind)){
-                self$which_exp_ind <- which(
-                    (private$org_file$`DSB Map` == "TRUE") & 
-                    (private$org_file$`RMSD?` == "TRUE")
-                )
-                if(!private$from_cluster) private$to_cluster_curves <- TRUE
+            self$results <- vector(
+                mode = "list", 
+                length = length(self$chr)
+            )
+            names(self$results) <- paste0("chr", self$chr)
+
+            if(!missing(rmsd_values)){
+                for(i in 1:length(rmsd_values)){
+                    private$rmsd_values[[names(rmsd_values)[i]]] <- rmsd_values[[names(rmsd_values)[i]]]
+                }
             }
-            private$len_of_loop <- self$which_exp_ind
+
+            if(is.null(private$rmsd_values)){
+                if(is.null(self$which_exp_ind)){
+                    self$which_exp_ind <- which(
+                        (private$org_file$`DSB Map` == "TRUE") & 
+                        (private$org_file$`RMSD?` == "TRUE")
+                    )
+                    # if(!private$from_cluster) private$to_cluster_curves <- TRUE
+                }
+                private$len_of_loop <- self$which_exp_ind
+            } 
         },
 
         #' @description
@@ -39,42 +57,83 @@ FitCurves <- R6::R6Class(
 
             if(private$from_cluster) plot.vec <- vector(mode = "list")
 
-            for(i in private$len_of_loop){
-                private$bp_exp <- paste0(
-                    private$org_file[i, `Fragmentation type`], "/",
-                    private$org_file[i, `Experiment folder`]
-                )
-                private$category <- private$org_file[i, Category_Main]
-                private$category_general <- private$org_file[i, Category_general]
-
-                cur.msg <- paste0("Processing ", i, "/", 
-                                  nrow(private$org_file),
-                                  ". ", private$bp_exp)
-                cat(cur.msg, "\n", sep = "")
-
-                # if k is not specified, perform calculations on c(2,4,6,8)
-                if(length(k) == 1){
-                    if(k == 8) private$fits <- c("kmer_8" = 3)
-                } else {
-                    private$fits <- c(
-                        "kmer_2" = 3, 
-                        "kmer_4" = 3, 
-                        "kmer_6" = 3, 
-                        "kmer_8" = 3
+            if(is.null(private$rmsd_values)){
+                for(i in private$len_of_loop){
+                    private$bp_exp <- paste0(
+                        private$org_file[i, `Fragmentation type`], "/",
+                        private$org_file[i, `Experiment folder`]
                     )
-                }
+                    private$category <- private$org_file[i, Category_Main]
+                    private$category_general <- private$org_file[i, Category_general]
 
-                if(!private$from_cluster){
-                    private$plot_rmsd(annot_plots = annot_plots)
-                    next
-                }
+                    cur.msg <- paste0("Processing ", i, "/", 
+                                    nrow(private$org_file),
+                                    ". ", private$bp_exp)
+                    cat(cur.msg, "\n", sep = "")
 
-                # if data from averaged summed sequence context dependence plots,
-                # save the combined plots
-                plot.vec <- c(
-                    plot.vec, 
-                    private$plot_rmsd(annot_plots = annot_plots)
-                )
+                    # if k is not specified, perform calculations on c(2,4,6,8)
+                    if(length(k) == 1){
+                        if(k == 8) private$fits <- c("kmer_8" = 3)
+                    } else {
+                        private$fits <- c(
+                            "kmer_2" = 3, 
+                            "kmer_4" = 3, 
+                            "kmer_6" = 3, 
+                            "kmer_8" = 3
+                        )
+                    }
+
+                    for(chr in self$chr){
+                        t1 <- Sys.time()
+                        cur.msg <- paste0("Calculating RMSD values for chromosome ", chr)
+                        l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                        cat(cur.msg, l, sep = "")
+
+                        if(!private$from_cluster){
+                            private$plot_rmsd(
+                                annot_plots = annot_plots,
+                                chr = chr
+                            )
+
+                            total.time <- Sys.time() - t1
+                            cat("DONE! --", signif(total.time[[1]], 2), 
+                                attr(total.time, "units"), "\n")
+                            next
+                        }
+
+                        # if data from averaged summed sequence context dependence plots,
+                        # save the combined plots
+                        plot.vec <- c(
+                            plot.vec, 
+                            private$plot_rmsd(annot_plots = annot_plots)
+                        )
+
+                        total.time <- Sys.time() - t1
+                        cat("DONE! --", signif(total.time[[1]], 2), 
+                            attr(total.time, "units"), "\n")
+                    }
+                }
+            } else {
+                for(chr in self$chr){
+                    t1 <- Sys.time()
+                    cur.msg <- paste0("Calculating RMSD values for chromosome ", chr)
+                    l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
+                    cat(cur.msg, l, sep = "")
+
+                    if(k == 8){
+                        private$fits <- c("kmer_8" = 3)
+                    } else {
+                        stop("NotImplementedError.")
+                    }
+                    private$plot_rmsd(
+                        annot_plots = annot_plots,
+                        chr = chr
+                    )
+
+                    total.time <- Sys.time() - t1
+                    cat("DONE! --", signif(total.time[[1]], 2), 
+                        attr(total.time, "units"), "\n")
+                }
             }
             
             if(private$from_cluster){
@@ -93,6 +152,34 @@ FitCurves <- R6::R6Class(
                     private$cluster_curves_into_ranges(kmer)
                 }
             }
+
+            # if(is.null(self$which_exp_ind)){
+            #     # clean up the last 3 columns if not empty
+            #     system("/usr/local/bin/bash check_to_clean.sh")
+
+            #     # init heatmap tracts from RMSD data
+            #     for(kmer in c(4,6,8)){
+            #         private$get_rmsd_tracts(kmer = kmer)
+            #     }
+
+            #     # hierarchical clustering to find optimal curve fits
+            #     for(kmer in c(4,6,8)){
+            #         private$save_curve_counts(kmer = kmer)
+            #     }
+
+            #     private$auto_fit <- FALSE
+            #     select.cols <- c("kmer_4", "kmer_6", "kmer_8")
+            #     private$fits <- setNames(
+            #         as.numeric(private$org_file[i, ..select.cols]),
+            #         colnames(private$org_file[i, ..select.cols])
+            #     )
+            #     private$plot_rmsd()
+
+            #     # update heatmap tracts from RMSD data
+            #     for(kmer in c(4,6,8)){
+            #         private$get_rmsd_tracts(kmer = kmer)
+            #     }
+            # }
 
             # time taken for full processing for this experiment
             final.t <- Sys.time() - start.time
@@ -132,6 +219,12 @@ FitCurves <- R6::R6Class(
         #' from averaged summed sequence context depedence datasets.
         from_cluster = FALSE,
 
+        #' @field return_vals Boolean. If TRUE, will return values instead of saving as file.
+        return_vals = FALSE,
+
+        #' @field rmsd_values Numeric vector of RMSD values. 
+        rmsd_values = NULL,
+
         #' @description
         #' Import full org_file.csv and filter for rows to be processed.
         #' @return None.
@@ -152,83 +245,98 @@ FitCurves <- R6::R6Class(
         #' @description
         #' Generate RMSD plots for all k-mers available
         #' @param annot_plots if TRUE, will add 95% C.I. of each curve onto plot.
+        #' @param chr Numeric vector of chromosome number.
         #' @return None.
-        plot_rmsd = function(annot_plots){
-            # load data sets
-            files <- list.files(
-                path = paste0("../data/", private$bp_exp),
-                pattern = "^rmsd_kmer_",
-                full.names = TRUE
-            )
-            files <- stringr::str_sort(files, numeric = TRUE)
-            file.name <- stringr::str_extract(
-                string = basename(files),
-                pattern = "kmer_[:digit:]"
-            )
+        plot_rmsd = function(annot_plots, chr){
+            if(is.null(private$rmsd_values)){
+                # load data sets
+                files <- list.files(
+                    path = paste0("../data/", private$bp_exp),
+                    pattern = "^rmsd_kmer_",
+                    full.names = TRUE
+                )
+                files <- stringr::str_sort(files, numeric = TRUE)
+                file.name <- stringr::str_extract(
+                    string = basename(files),
+                    pattern = "kmer_[:digit:]"
+                )
 
-            data.sets <- lapply(1:length(files), function(x){
-                out <- readRDS(file = files[x])
-                limits <- length(out)/2-1
-                out <- as_tibble(out) %>% 
-                    dplyr::mutate(
-                        kmer = as.factor(file.name[x]), 
-                        x = -limits:(length(out)-limits-1)) %>% 
-                    dplyr::rename(y = value)
-                return(out)
-            })
-            data.sets <- do.call(rbind, data.sets)
+                data.sets <- lapply(1:length(files), function(x){
+                    out <- readRDS(file = files[x])
+                    limits <- length(out)/2-1
+                    out <- as_tibble(out) %>% 
+                        dplyr::mutate(
+                            kmer = as.factor(file.name[x]), 
+                            x = -limits:(length(out)-limits-1)) %>% 
+                        dplyr::rename(y = value)
+                    return(out)
+                })
+                data.sets <- do.call(rbind, data.sets)
 
-            # Overall RMSD plots
-            plots <- data.sets %>%
-                dplyr::mutate(kmer = 
-                    stringr::str_replace_all(
-                        string = stringr::str_to_title(kmer),
-                        pattern = "_",
-                        replacement = " "
-                    )) %>%              
-                ggplot(aes(x = x, y = y)) + 
-                    geom_line(linewidth = 0.8) + 
-                    facet_wrap(~kmer, ncol = 4, scales = "free_y") + 
-                    theme_bw() + 
-                    coord_cartesian(ylim = c(0, NA)) + 
-                    theme(text = element_text(size = 25)) + 
-                    labs(
-                        x = "Position away from breakpoint",
-                        y = "RMSD"
+                # Overall RMSD plots
+                plots <- data.sets %>%
+                    dplyr::mutate(kmer = 
+                        stringr::str_replace_all(
+                            string = stringr::str_to_title(kmer),
+                            pattern = "_",
+                            replacement = " "
+                        )) %>%              
+                    ggplot(aes(x = x, y = y)) + 
+                        geom_line(linewidth = 0.8) + 
+                        facet_wrap(~kmer, ncol = 4, scales = "free_y") + 
+                        theme_bw() + 
+                        coord_cartesian(ylim = c(0, NA)) + 
+                        theme(text = element_text(size = 25)) + 
+                        labs(
+                            x = "Position away from breakpoint",
+                            y = "RMSD"
+                        )
+
+                dir.create(
+                    path = paste0("../figures/", private$bp_exp),
+                    showWarnings = FALSE,
+                    recursive = TRUE
+                )
+
+                height <- ifelse(length(files) == 1, 7, 6)
+                width <- ifelse(length(files) == 1, 7, 21)
+                if(!private$return_vals){
+                    ggsave(
+                        filename = paste0("../figures/", private$bp_exp, 
+                                            "/chr", chr, 
+                                            "_sidebyside_RMSD.pdf"),
+                        plot = plots, 
+                        height = height,
+                        width = width
                     )
-
-            dir.create(
-                path = paste0("../figures/", private$bp_exp),
-                showWarnings = FALSE,
-                recursive = TRUE
-            )
-
-            height <- ifelse(length(files) == 1, 7, 6)
-            width <- ifelse(length(files) == 1, 7, 21)
-            ggsave(
-                filename = paste0("../figures/", private$bp_exp, 
-                                    "/chr", self$chr, 
-                                    "_sidebyside_RMSD.pdf"),
-                plot = plots, 
-                height = height,
-                width = width
-            )
+                }
+            }
 
             # GMM plots
-            data.sets <- data.sets %>%
-                dplyr::mutate(dplyr::across(where(is.factor), as.character)) %>% 
-                dplyr::filter(
-                    kmer == "kmer_2" |
-                    kmer == "kmer_4" |
-                    kmer == "kmer_6" |
-                    kmer == "kmer_8"
+            if(is.null(private$rmsd_values)){
+                data.sets <- data.sets %>%
+                    dplyr::mutate(dplyr::across(where(is.factor), as.character)) %>% 
+                    dplyr::filter(
+                        kmer == "kmer_2" |
+                        kmer == "kmer_4" |
+                        kmer == "kmer_6" |
+                        kmer == "kmer_8"
+                    )
+            } else {
+                limits <- length(private$rmsd_values[[paste0("chr", chr)]])/2-1
+                data.sets <- tibble(
+                    x = -limits:(length(private$rmsd_values[[paste0("chr", chr)]])-limits-1),
+                    y = private$rmsd_values[[paste0("chr", chr)]],
+                    kmer = "kmer_8"
                 )
+            }
 
             p <- vector(mode = "list", length = length(private$fits))
             for(k in 1:length(private$fits)){
                 if(!is.na(private$fits[k])){
                     dat <- data.sets %>% 
                         dplyr::filter(kmer == names(private$fits[k]))
+
                     curvefits <- private$fit_gmm(
                         dat = dat, 
                         ind = names(private$fits[k]), 
@@ -387,54 +495,72 @@ FitCurves <- R6::R6Class(
                                 colnames(df)[4:6][long.range] <- "long.range"
                             }
                         }
+                    }                    
+
+                    if(is.null(private$rmsd_values)){
+                        df <- df[, 1:(4+unname(private$fits[k]))]
                     }
-
-                    df <- df[, 1:(4+unname(private$fits[k]))]
-                    dir.create(
-                        path = paste0("../data/", private$bp_exp),
-                        showWarnings = FALSE,
-                        recursive = TRUE
-                    )
-
-                    # save the gaussian curves statistics
-                    fwrite(
-                        df,
-                        file = paste0("../data/", private$bp_exp, "/key",
-                                      "_stats_", names(private$fits[k]), ".csv"),
-                        row.names = FALSE
-                    )
-
-                    # save the actual gaussian curves values
-                    fwrite(
-                        curve.vals,
-                        file = paste0("../data/", private$bp_exp, 
-                                      "/gaussian_curve_vals_",
-                                      names(private$fits[k]), ".csv"),
-                        row.names = FALSE
-                    )
-
-                    # save the linear combination of all gaussian curves values
                     all.gc <- as.data.table(output[[3]])
-                    fwrite(
-                        all.gc,
-                        file = paste0("../data/", private$bp_exp, 
-                                      "/gaussian_curve_vals_linear_combinations_",
-                                      names(private$fits[k]), ".csv"),
-                        row.names = FALSE
-                    )                    
+
+                    if(private$return_vals){
+                        # gaussian curve stats
+                        self$results[[paste0("chr", chr)]]$df <- df 
+
+                        # curve values
+                        self$results[[paste0("chr", chr)]]$curve_vals <- curve.vals
+
+                        # linear combination of all gaussian curves
+                        self$results[[paste0("chr", chr)]]$all_gc <- all.gc
+                    } else {
+                        dir.create(
+                            path = paste0("../data/", private$bp_exp),
+                            showWarnings = FALSE,
+                            recursive = TRUE
+                        )
+
+                        # save the gaussian curves statistics
+                        fwrite(
+                            df,
+                            file = paste0("../data/", private$bp_exp, "/key",
+                                        "_stats_", names(private$fits[k]), ".csv"),
+                            row.names = FALSE
+                        )
+
+                        # save the actual gaussian curves values
+                        fwrite(
+                            curve.vals,
+                            file = paste0("../data/", private$bp_exp, 
+                                        "/gaussian_curve_vals_",
+                                        names(private$fits[k]), ".csv"),
+                            row.names = FALSE
+                        )
+
+                        # save the linear combination of all gaussian curves values
+                        fwrite(
+                            all.gc,
+                            file = paste0("../data/", private$bp_exp, 
+                                        "/gaussian_curve_vals_linear_combinations_",
+                                        names(private$fits[k]), ".csv"),
+                            row.names = FALSE
+                        )                    
+                    }
                 }
                 # if(k == 1) print(p) # temp. avoid an unsolved ggplot bug
             }
 
-            height <- ifelse(length(files) == 1, 5, 12)
-            width <- ifelse(length(files) == 1, 7, 5)
-            pdf(
-                file = paste0("../figures/", private$bp_exp, 
-                              "/chr", self$chr, "_RMSD_all_GMMFit.pdf"),
-                height = height, width = width
-            )
-            p1 <- do.call(gridExtra::grid.arrange, c(p, ncol = 1))
-            pic.saved <- dev.off()
+            if(is.null(private$rmsd_values)){
+                height <- ifelse(length(files) == 1, 5, 12)
+                width <- ifelse(length(files) == 1, 7, 5)
+                if(!private$return_vals){
+                    pdf(
+                        file = paste0("../figures/", private$bp_exp, 
+                                    "/chr", chr, "_RMSD_all_GMMFit.pdf"),
+                        height = height, width = width
+                    )
+                    p1 <- do.call(gridExtra::grid.arrange, c(p, ncol = 1))
+                    pic.saved <- dev.off()
+                }
+            }
 
             if(private$from_cluster) return(p)
         },
@@ -475,7 +601,7 @@ FitCurves <- R6::R6Class(
             
             nls.res <- lapply(1:nrow(grid_search), function(index){
                 if(nr.of.curves == 1){
-                    try_fit <- function(C.value = 10, sd1, sd2){
+                    try_fit <- function(C.value = 10, sd1){
                         nls(
                         y ~ (C1 * exp(-(x-0)^2/(2 * sigma1^2)) +
                             min(y)),
@@ -496,8 +622,7 @@ FitCurves <- R6::R6Class(
                     fit <- tryCatch({
                         try_fit(
                             C.value = 10,
-                            sd1 = grid_search$sd1[index],
-                            sd2 = grid_search$sd2[index]
+                            sd1 = grid_search$sd1[index]
                         )
                     }, error = function(e) return(2))
                 } else if(nr.of.curves == 2){
@@ -597,10 +722,13 @@ FitCurves <- R6::R6Class(
             # error capture
             init.list <- vector(mode = "list", length = 4)
             init.list[[4]] <- fit
-            if(class(fit) != "nls") return(init.list) 
+            if(class(fit) != "nls") return(init.list)
 
             # extract each parameter
             summary.fit.params <- fit$m$getAllPars()
+
+            # extract rss
+            rss <- sum(residuals(fit)^2)
 
             # # check for zero coefficients
             # any.zero.coefs <- any(summary.fit.params[grepl(
@@ -609,60 +737,15 @@ FitCurves <- R6::R6Class(
             # if(any.zero.coefs) return(init.list[[4]] <- 2)
             
             # fit each Gaussian curve separately to data
-            draw.from.gaussian <- function(xs, C, SD, miny){
-                return(C*exp(-(xs-0)^2/(2*SD^2))+min(miny))
-            }
-
-            # integral functions for curve 1
-            curve.one <- function(x, C, SD){
-                return(
-                    (C*exp(-(x-0)^2/(2*SD^2)))
-                )
-            }
-
-            # integral functions for curve 2
-            curve.two <- function(x, C, SD){
-                return(
-                    (C*exp(-(x-0)^2/(2*SD^2)))
-                )
-            }
-
-            # integral functions for curve 3
-            curve.three <- function(x, C, SD){
-                return(
-                    (C*exp(-(x-0)^2/(2*SD^2)))
-                )
-            }
-
-            # integral functions for all curves
-            all.curves <- function(x, nr.of.curves, C1, C2, 
-                                   C3=NULL, SD1, SD2, SD3=NULL){
-                if(nr.of.curves == 1){
-                    return(
-                        (C1*exp(-(x-0)^2/(2*SD1^2)))
-                    )
-                } else if(nr.of.curves == 2){
-                    return(
-                        (C1*exp(-(x-0)^2/(2*SD1^2))+
-                        C2*exp(-(x-0)^2/(2*SD2^2))
-                        )
-                    )
-                } else if(nr.of.curves == 3){
-                    return(
-                        (C1*exp(-(x-0)^2/(2*SD1^2))+
-                        C2*exp(-(x-0)^2/(2*SD2^2))+
-                        C3*exp(-(x-0)^2/(2*SD3^2))
-                        )
-                    )
-                }
+            draw.from.gaussian <- function(xs, C, SD){
+                return(C*exp(-(xs-0)^2/(2*SD^2))+min(dat$y, na.rm = TRUE))
             }
             
             # fit curve 1
             fit_1 <- draw.from.gaussian(
                 xs = x,
                 C = summary.fit.params["C1"],
-                SD = summary.fit.params["sigma1"],
-                miny = min(y, na.rm = TRUE)
+                SD = summary.fit.params["sigma1"]
             )
             peak.intensity.fit_1 <- max(fit_1, na.rm = TRUE)
 
@@ -682,85 +765,32 @@ FitCurves <- R6::R6Class(
                 fit_2 <- draw.from.gaussian(
                     xs = x,
                     C = summary.fit.params["C2"],
-                    SD = summary.fit.params["sigma2"],
-                    miny = min(y, na.rm = TRUE)
+                    SD = summary.fit.params["sigma2"]
                 )
-                peak.intensity.fit_2 <- max(fit_2, na.rm = TRUE)
+                peak.intensity.fit_2 <- max(fit_2, na.rm = TRUE)-min(dat$y, na.rm = TRUE)
 
-                # integrate curve 1
-                integral.curve.one <- tryCatch({
-                    integrate(
-                        curve.one, 
-                        lower = x[1], 
-                        upper = x[length(x)],
-                        C = summary.fit.params["C1"],
-                        SD = summary.fit.params["sigma1"])$value
-                    }, error = function(e){
-                    integrate(
-                        curve.one, 
-                        lower = x[1], 
-                        upper = x[length(x)],
-                        C = summary.fit.params["C1"],
-                        SD = summary.fit.params["sigma1"],
-                        rel.tol = 1e-15)$value
-                })
-
-                # integrate curve 2
-                integral.curve.two <- tryCatch({
-                    integrate(
-                        curve.two, 
-                        lower = x[1], 
-                        upper = x[length(x)],
-                        C = summary.fit.params["C2"],
-                        SD = summary.fit.params["sigma2"])$value
-                    }, error = function(e){
-                    integrate(
-                        curve.two, 
-                        lower = x[1], 
-                        upper = x[length(x)],
-                        C = summary.fit.params["C2"],
-                        SD = summary.fit.params["sigma2"],
-                        rel.tol = 1e-15)$value
-                })
+                # calculate area under each curve
+                integral.curve.one <- summary.fit.params["C1"]*summary.fit.params["sigma1"]*sqrt(2*pi)
+                integral.curve.two <- summary.fit.params["C2"]*summary.fit.params["sigma2"]*sqrt(2*pi)
 
                 if(nr.of.curves == 2){
-                    # integrate linear combination of gaussian curves
-                    integral.all.curves <- tryCatch({
-                        integrate(
-                            all.curves, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            nr.of.curves = 2,
-                            C1 = summary.fit.params["C1"],
-                            C2 = summary.fit.params["C2"],
-                            SD1 = summary.fit.params["sigma1"],
-                            SD2 = summary.fit.params["sigma2"])$value
-                    },error = function(e){
-                        integrate(
-                            all.curves, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            nr.of.curves = 2,
-                            C1 = summary.fit.params["C1"],
-                            C2 = summary.fit.params["C2"],
-                            SD1 = summary.fit.params["sigma1"],
-                            SD2 = summary.fit.params["sigma2"],
-                            rel.tol = 1e-15)$value
-                    })
+                    # Calculate total area
+                    integral.all.curves <- integral.curve.one+integral.curve.two
 
                     # percentage contribution of each curve
                     curve.one.contribution <- integral.curve.one/integral.all.curves
                     curve.two.contribution <- 1-curve.one.contribution
 
                     # peak intensity contribution of each gaussian curve normalised
-                    peak.intensity.all <- peak.intensity.fit_1+peak.intensity.fit_2
+                    peak.intensity.all <- (fit_1+fit_2)-min(dat$y)
+                    peak.intensity.all <- max(peak.intensity.all, na.rm = TRUE)
                     peak.fit_1.contribution <- peak.intensity.fit_1/peak.intensity.all
                     peak.fit_2.contribution <- 1-peak.fit_1.contribution
 
-                    if(any(c(curve.one.contribution, 
-                             curve.two.contribution) <= 0.05)){
-                         return(init.list[[4]] <- 2)
-                    } 
+                    # if(any(c(peak.fit_1.contribution*100, 
+                    #          peak.fit_2.contribution*100) < 1)){
+                    #      return(init.list[[4]] <- 2)
+                    # } 
                     return(
                         list(
                             fit_1, fit_2, 
@@ -780,57 +810,15 @@ FitCurves <- R6::R6Class(
                     fit_3 <- draw.from.gaussian(
                         xs = x,
                         C = summary.fit.params["C3"],
-                        SD = summary.fit.params["sigma3"],
-                        miny = min(y, na.rm = TRUE)
+                        SD = summary.fit.params["sigma3"]
                     )
-                    peak.intensity.fit_3 <- max(fit_3, na.rm = TRUE)
+                    peak.intensity.fit_3 <- max(fit_3, na.rm = TRUE)-min(dat$y, na.rm = TRUE)
 
-                    # integrate curve 3
-                    integral.curve.three <- tryCatch({
-                        integrate(
-                            curve.three, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            C = summary.fit.params["C3"],
-                            SD = summary.fit.params["sigma3"])$value
-                    }, error = function(e){
-                        integrate(
-                            curve.three, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            C = summary.fit.params["C3"],
-                            SD = summary.fit.params["sigma3"],
-                            rel.tol = 1e-15)$value
-                    })
+                    # calculate area under each curve
+                    integral.curve.three <- summary.fit.params["C3"]*summary.fit.params["sigma3"]*sqrt(2*pi)
 
-                    # integrate linear combination of gaussian curves
-                    integral.all.curves <- tryCatch({
-                        integrate(
-                            all.curves, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            nr.of.curves = 3,
-                            C1 = summary.fit.params["C1"],
-                            C2 = summary.fit.params["C2"],
-                            C3 = summary.fit.params["C3"],
-                            SD1 = summary.fit.params["sigma1"],
-                            SD2 = summary.fit.params["sigma2"],
-                            SD3 = summary.fit.params["sigma3"])$value
-                    }, error = function(e){
-                        integrate(
-                            all.curves, 
-                            lower = x[1], 
-                            upper = x[length(x)],
-                            nr.of.curves = 3,
-                            C1 = summary.fit.params["C1"],
-                            C2 = summary.fit.params["C2"],
-                            C3 = summary.fit.params["C3"],
-                            SD1 = summary.fit.params["sigma1"],
-                            SD2 = summary.fit.params["sigma2"],
-                            SD3 = summary.fit.params["sigma3"],
-                            rel.tol = 1e-15
-                            )$value
-                    })
+                    # Calculate total area
+                    integral.all.curves <- integral.curve.one+integral.curve.two+integral.curve.three
 
                     # percentage contribution of each curve
                     curve.one.contribution <- integral.curve.one/integral.all.curves
@@ -838,14 +826,16 @@ FitCurves <- R6::R6Class(
                     curve.three.contribution <- 1-curve.one.contribution-curve.two.contribution
 
                     # peak intensity contribution of each gaussian curve normalised
-                    peak.intensity.all <- peak.intensity.fit_1+peak.intensity.fit_2+peak.intensity.fit_3
+                    peak.intensity.all <- (peak.intensity.fit_1+peak.intensity.fit_2+peak.intensity.fit_3)
                     peak.fit_1.contribution <- peak.intensity.fit_1/peak.intensity.all
                     peak.fit_2.contribution <- peak.intensity.fit_2/peak.intensity.all
                     peak.fit_3.contribution <- 1-peak.fit_1.contribution-peak.fit_2.contribution
 
-                    if(any(c(curve.one.contribution, 
-                             curve.two.contribution, 
-                             curve.three.contribution) <= 0.05)){
+                    # print(paste(peak.fit_1.contribution*100, peak.fit_2.contribution*100, peak.fit_3.contribution*100))
+
+                    if(any(c(peak.fit_1.contribution*100, 
+                             peak.fit_2.contribution*100, 
+                             peak.fit_3.contribution*100) < 5)){
                          return(init.list[[4]] <- 2)
                     }                    
                     return(
@@ -926,7 +916,7 @@ FitCurves <- R6::R6Class(
                     stat = "identity",
                     color = "#619B61",
                     alpha = 1,
-                    linewidth = 1.2) + 
+                    linewidth = 2) + 
                 theme_bw() + 
                 theme(
                     axis.line = element_line(colour = "black"),
@@ -1039,7 +1029,7 @@ FitCurves <- R6::R6Class(
                     stat = "identity",
                     color = "#355c7d",
                     alpha = 1,
-                    linewidth = 1.2)
+                    linewidth = 2)
                     # theme_bw() 
                     # theme(text = element_text(size = 25)) +
                     # labs(
@@ -1071,7 +1061,7 @@ FitCurves <- R6::R6Class(
                             stat = "identity",
                             color = "#f8b195",
                             alpha = 1,
-                            linewidth = 1.2
+                            linewidth = 2
                         )
                     
                     if(annot_plots){
@@ -1120,7 +1110,7 @@ FitCurves <- R6::R6Class(
                             stat = "identity",
                             color = "#BB357E",
                             alpha = 1,
-                            linewidth = 1.2
+                            linewidth = 2
                         ) +
                         geom_line(
                             data = data.frame(
@@ -1130,7 +1120,7 @@ FitCurves <- R6::R6Class(
                             stat = "identity",
                             color = "#f8b195",
                             alpha = 1,
-                            linewidth = 1.2
+                            linewidth = 2
                         ) 
 
                     if(annot_plots){
@@ -1289,21 +1279,41 @@ FitCurves <- R6::R6Class(
                 }
 
                 dat.plot <- dat %>% 
+                    dplyr::mutate(
+                        Cluster = dplyr::case_when(
+                            Cluster == "short.range" ~ "Short range",
+                            Cluster == "mid.range" ~ "Mid range",
+                            Cluster == "long.range" ~ "Long range"
+                        ),
+                        hex = dplyr::case_when(
+                            Cluster == "Short range" ~ "#619B61",
+                            Cluster == "Mid range" ~ "#355B7D",
+                            Cluster == "Long range" ~ "#BB357E"
+                        )
+                    ) %>%
                     ggplot(aes(x = Value)) +
                     geom_histogram(aes(
                         y = after_stat(density),
-                        fill = Cluster, 
-                        group = Cluster), 
+                        fill = hex, 
+                        group = hex), 
                         colour = "black",
-                        bins = 130
+                        bins = 80
                     ) +
-                    # scale_fill_discrete(labels = label) +   
+                    theme_bw() + 
+                    theme_classic() + 
+                    theme(text = element_text(size = 20)) + 
+                    scale_fill_identity() +
                     labs(
-                        title = paste("Sequence influences clustered into", 
-                                        length(unique(dat$Cluster)), "separate ranges"),
-                        subtitle = ifelse(log_scale, 
-                                            "Clustering based on log-scaled values", 
-                                            "Clustering based on true values"),
+                        title = paste(
+                            "Sequence influences clustered into", 
+                            length(unique(dat$Cluster)), 
+                            "separate ranges"
+                        ),
+                        subtitle = ifelse(
+                            log_scale, 
+                            "Clustering based on log-scaled values", 
+                            "Clustering based on true values"
+                        ),
                         x = "Ranges (raw values)",
                         y = "Density in Cluster"
                     )
@@ -1322,30 +1332,28 @@ FitCurves <- R6::R6Class(
                     height = 7
                 )
 
-                if(!log_scale){
-                    # Hierarchical clustering plot
-                    pdf(paste0("../figures/ranges/kmer_", kmer, 
-                                ifelse(log_scale, "_LOG_", "_"), 
-                                "flattened_ranges_clustering.pdf"))
-                    plot(
-                        clusts, 
-                        hang = -1, 
-                        cex = 0.2,
-                        main = paste0("Hierarchical clustering on ", 
-                                        "flattened ranges of sequence influences"),
-                        xlab = "Ranges", 
-                        sub = NA
-                    )
+                # Hierarchical clustering plot
+                pdf(paste0("../figures/ranges/kmer_", kmer, 
+                            ifelse(log_scale, "_LOG_", "_"), 
+                            "flattened_ranges_clustering.pdf"))
+                plot(
+                    clusts, 
+                    hang = -1, 
+                    cex = 0.2,
+                    main = paste0("Hierarchical clustering on ", 
+                                    "flattened ranges of sequence influences"),
+                    xlab = "Ranges", 
+                    sub = NA
+                )
 
-                    rect.hclust(
-                        clusts, 
-                        k = max(cl_members, na.rm = TRUE), 
-                        which = seq_len(max(cl_members, na.rm = TRUE)), 
-                        border = seq_len(max(cl_members, na.rm = TRUE)), 
-                        cluster = cl_members
-                    )
-                    save.plot <- dev.off()
-                }
+                rect.hclust(
+                    clusts, 
+                    k = max(cl_members, na.rm = TRUE), 
+                    which = seq_len(max(cl_members, na.rm = TRUE)), 
+                    border = seq_len(max(cl_members, na.rm = TRUE)), 
+                    cluster = cl_members
+                )
+                save.plot <- dev.off()
             }
 
             # perform clustering and saves results
@@ -1555,6 +1563,274 @@ FitCurves <- R6::R6Class(
             total.time <- Sys.time() - t1
             cat("DONE! --", signif(total.time[[1]], 2), 
                 attr(total.time, "units"), "\n")
+        },
+
+        #' @description
+        #' Performs hierarchical clusterings of RMSD tracts.
+        #' @param kmer Numeric vector of the k-mer size.
+        #' @return None.
+        get_rmsd_tracts = function(kmer){
+            all.files <- list.files(
+                path = "../data",
+                pattern = paste0("key_stats_kmer_", kmer, ".*"), 
+                recursive = TRUE,
+                full.names = TRUE
+            )
+
+            if(private$auto_fit){
+                curve.labels <- c("long.range", "mid.range", "short.range")
+            } else {
+                curve.labels <- c(
+                    "short.range-1", "short.range-2",
+                    "mid.range-1", "mid.range-2",
+                    "long.range-1", "long.range-2"
+                )
+            }
+
+            results <- lapply(all.files, function(file){
+                out <- fread(file, check.names = TRUE)
+
+                if(private$auto_fit){
+                    if(!("curve.two" %in% colnames(out))){
+                        out <- cbind(out, rep(NA_real_, 4))
+                        colnames(out)[length(colnames(out))] <- "curve.two"
+                    }
+
+                    if(!("curve.three" %in% colnames(out))){
+                        out <- cbind(out, rep(NA_real_, 4))
+                        colnames(out)[length(colnames(out))] <- "curve.three"
+                    }
+                } else {
+                    not.duplicate.col.names <- str_extract(
+                        string = colnames(out)[5:length(out)], 
+                        pattern = "[:digit:]"
+                    )
+
+                    colnames(out)[5:length(out)][which(is.na(not.duplicate.col.names))] <- 
+                        paste0(colnames(out)[5:length(out)][which(is.na(not.duplicate.col.names))], "-1")
+
+                    colnames(out)[5:length(out)][which(!is.na(not.duplicate.col.names))] <- 
+                    stringr::str_replace(
+                        string = colnames(out)[5:length(out)][which(!is.na(not.duplicate.col.names))], 
+                        pattern = "\\.[0-9]",
+                        replacement = "-2"
+                    )
+
+                    missing <- which(!curve.labels %in% colnames(out))
+                    if(any(missing)){
+                        for(m in missing){
+                            out <- cbind(out, rep(NA_real_, 4))
+                            colnames(out)[length(colnames(out))] <- curve.labels[m]
+                        }
+                    }
+                }
+                return(out)
+            })
+            results <- do.call(rbind, results)
+            results <- as_tibble(results)
+
+            if(private$auto_fit){
+                results <- results %>% 
+                    dplyr::relocate(
+                        curve.one, 
+                        curve.two, 
+                        curve.three, 
+                        .after = 4) %>% 
+                    dplyr::arrange(category)
+
+                df <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(-c(
+                        category, 
+                        category_general, 
+                        rowid)) %>% 
+                    dplyr::relocate(
+                        curve.one, 
+                        curve.two, 
+                        curve.three, 
+                        .after = 1
+                    )
+
+                colmsn <- colMeans(df[, -1], na.rm = TRUE)
+                df <- as_tibble(cbind(df[, "exp"], df[, -1][order(colmsn, decreasing = FALSE)]))
+            } else {
+                rearrange.cols <- 4+match(colnames(results[, 5:length(results)]), curve.labels)
+
+                results <- results %>% 
+                    dplyr::select(order(c(
+                        1, 2, 3, 4, 
+                        rearrange.cols))) %>% 
+                    dplyr::select(where(~sum(!is.na(.)) > 0))
+
+                df <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(-c(
+                        category, 
+                        category.sub, 
+                        rowid)
+                    )
+            }
+
+            dir.create(
+                path = paste0("../data/seq_influence"),
+                showWarnings = FALSE
+            )
+            fwrite(
+                results,
+                paste0("../data/seq_influence/", 
+                        ifelse(private$auto_fit, "key", "new"), 
+                        "_stats_kmer_", kmer, ".csv")
+            )
+
+            # hierarchical clustering
+            df.hc <- apply(df[,-1], 2, as.numeric)
+            rownames(df.hc) <- df$exp
+            df.dist <- dist(df.hc) %>% suppressWarnings()
+            df.dendro <- as.dendrogram(hclust(df.dist, method = "ward.D2"))
+            transpose.df <- t(df.hc)
+
+            dir.create(
+                path = "../figures/seq_influence", 
+                showWarnings = FALSE
+            )
+            pdf(
+                paste0("../figures/seq_influence/", kmer, "-mer-clustering_", 
+                       ifelse(private$auto_fit, "auto_fit", "optimised"),
+                       ".pdf"), 
+                height = 10, 
+                width = 8
+            )
+
+            cols <- 200
+            heatmap.breaks <- seq(min(df.hc, na.rm = TRUE), 
+                                  max(df.hc, na.rm = TRUE), 
+                                  length.out = cols+1)
+            heatmap.2(
+                df.hc,
+                offsetRow = 0,
+                offsetCol = 0,
+                Rowv = df.dendro,
+                Colv = FALSE,
+                dendrogram = "row",
+                revC = FALSE,
+                trace = "none",
+                density.info = "histogram",
+                col = hcl.colors(cols, "RdYlGn"), 
+                breaks = heatmap.breaks,
+                na.color = "grey",
+                notecol = "black",
+                cexCol = 0.4,
+                cexRow = 0.4,
+                labRow = rownames(df.hc),
+                labCol = colnames(df.hc),
+                margins = c(4,20),
+                key.xlab = "RMSD ranges"
+            )
+            plot.save <- dev.off()
+
+            if(!private$auto_fit){
+                # Plot individual distributions for each range
+                p <- results %>% 
+                    dplyr::filter(rowid == "ranges") %>% 
+                    dplyr::select(
+                        exp, 
+                        category, 
+                        contains("range")) %>% 
+                    tidyr::gather(
+                        -c(exp,category), 
+                        key = "Ranges",
+                        value = "Value") %>% 
+                    dplyr::mutate(
+                        Ranges = factor(Ranges, 
+                        levels = c("short.range", 
+                                   "mid.range", 
+                                   "long.range"))) %>% 
+                    ggplot(aes(x = Value)) + 
+                    geom_histogram(aes(
+                        fill = category),
+                        bins = 50,
+                        colour = "black"
+                    ) +
+                    facet_wrap(~Ranges, scales = "free_x") +
+                    labs(
+                        title = "Sequence influences clustered into 3 separate ranges",
+                        subtitle = paste0("Kmer: ", kmer),
+                        x = "Ranges",
+                        y = "Count"
+                    )
+
+                suppressWarnings(ggsave(
+                    plot = p, 
+                    filename = paste0("../figures/seq_influence/", 
+                                      kmer, "-mer-ranges.pdf"),
+                    height = 7, 
+                    width = 13
+                ))
+            }
+
+            if(!private$auto_fit){
+                # categorical hierarchical clustering
+                df <- df %>% 
+                    tidyr::gather(-exp, key = "Curve", value = "Value") %>% 
+                    dplyr::mutate(Value = case_when(
+                        (str_detect(Curve, "short") & !is.na(Value)) ~ 1,
+                        (str_detect(Curve, "mid") & !is.na(Value)) ~ 2,
+                        (str_detect(Curve, "long") & !is.na(Value)) ~ 3)) %>% 
+                    tidyr::spread(Curve, Value)
+
+                rearrange.cols <- match(colnames(df[-1]), curve.labels)
+
+                df <- df %>% 
+                    dplyr::select(order(c(1, rearrange.cols))) %>% 
+                    dplyr::select(where(~sum(!is.na(.)) > 0))
+                
+                df.hc <- df[-1] %>% 
+                    dplyr::mutate(dplyr::across(
+                        where(is.numeric), 
+                        function(x) ifelse(is.na(x), 0, x))) %>% 
+                    dplyr::mutate(dplyr::across(
+                        where(is.numeric), 
+                        as.factor)
+                    )
+
+                df.dist <- daisy(df.hc, metric = "gower") %>% suppressWarnings()
+                df.dendro <- as.dendrogram(hclust(df.dist, method = "ward.D2"))
+                df.hc <- apply(df.hc, 2, as.numeric)
+                rownames(df.hc) <- df$exp
+
+                pdf(
+                    paste0("../figures/seq_influence/", kmer, 
+                           "-mer-clustering_optimised-categorical.pdf"), 
+                    height = 10, 
+                    width = 8
+                )
+
+                breaks <- -1:3
+                col <- c("grey","red","orange", "darkgreen")
+
+                heatmap.2(
+                    df.hc,
+                    offsetRow = 0,
+                    offsetCol = 0,
+                    Rowv = df.dendro,
+                    Colv = FALSE,
+                    dendrogram = "row",
+                    revC = FALSE,
+                    trace = "none",
+                    density.info = "histogram",
+                    col = col, 
+                    breaks = breaks,
+                    na.color = "grey",
+                    notecol = "black",
+                    cexCol = 0.4,
+                    cexRow = 0.4,
+                    labRow = rownames(df.hc),
+                    labCol = colnames(df.hc),
+                    margins = c(4,20),
+                    key.xlab = "Category of curve"
+                )
+                plot.save <- dev.off()
+            }
         }
     )
 )
