@@ -18,7 +18,10 @@ SequenceEffect <- R6::R6Class(
         #' @field results List of results stored if return_vals is TRUE.
         results = NULL,
 
-        initialize = function(chr, which_exp_ind, control, seed, return_vals){
+        size_of_data = NULL,
+
+        initialize = function(chr, which_exp_ind, control, seed, 
+                              return_vals, assembly){
             if(!missing(chr)) self$chr <- chr
             if(!missing(which_exp_ind)) self$which_exp_ind <- which_exp_ind
             if(!missing(control)) private$control <- control
@@ -26,11 +29,15 @@ SequenceEffect <- R6::R6Class(
             if(!missing(return_vals)) private$return_vals <- return_vals
 
             if(private$return_vals){
-                self$results <- vector(
+                self$size_of_data <- self$results <- vector(
                     mode = "list", 
                     length = length(self$chr)
                 )
-                names(self$results) <- paste0("chr", self$chr)
+                names(self$size_of_data) <- names(self$results) <- paste0("chr", self$chr)
+            }
+
+            if(is.null(self$which_exp_ind) & private$control){
+                private$pure_control_study <- TRUE
             }
 
             # get full org_file.csv
@@ -42,17 +49,30 @@ SequenceEffect <- R6::R6Class(
         #' base-pair of all aligned reads RMSD computations.
         #' @return None.
         calc_seq_effect = function(k = NULL, rmsd.range = c(-301, 301), 
-                                   from_file = FALSE, break_type = NULL){
+                                   from_file = FALSE, break_type = NULL,
+                                   break_data = NULL, assembly = NULL){
             private$rmsd_range <- rmsd.range[1]:rmsd.range[2]
             if(!is.null(break_type)) private$break_type <- break_type
 
-            if(is.null(self$which_exp_ind)){
-                self$which_exp_ind <- which(
-                    (private$org_file$`DSB Map` == "TRUE") & 
-                    (private$org_file$`RMSD?` == "TRUE")
-                )
+            if(!is.null(break_data)){
+                for(i in 1:length(break_data)){
+                    private$break_data[[names(break_data)[i]]] <- break_data[[names(break_data)[i]]]
+                }
             }
-            len.of.loop <- self$which_exp_ind
+
+            if(is.null(private$break_data)){
+                if(is.null(self$which_exp_ind)){
+                    self$which_exp_ind <- which(
+                        (private$org_file$`DSB Map` == "TRUE") & 
+                        (private$org_file$`RMSD?` == "TRUE")
+                    )
+                }
+                len.of.loop <- self$which_exp_ind
+
+                if(private$pure_control_study) len.of.loop <- 1
+            } else {
+                len.of.loop <- 1
+            }
 
             # if k is not specified, perform calculation over c(4,6,8).
             if(length(k) == 1){
@@ -65,14 +85,27 @@ SequenceEffect <- R6::R6Class(
             for(i in len.of.loop){
                 start.time <- Sys.time()
 
-                private$bp_exp <- paste0(
-                    private$org_file[i, `Fragmentation type`], "/",
-                    private$org_file[i, `Experiment folder`]
-                )
+                if(is.null(private$break_data)){
+                    if(private$pure_control_study){
+                        private$assembly <- "hg19"
+                        cur.msg <- paste0("Running a pure control study.")
+                    } else {
+                        private$bp_exp <- paste0(
+                            private$org_file[i, `Fragmentation type`], "/",
+                            private$org_file[i, `Experiment folder`]
+                        )
+                        private$assembly <- private$org_file[i, `Reference genome folder`]
+                        
+                        cur.msg <- paste0("Processing ", match(i, len.of.loop), "/", 
+                                        length(len.of.loop),
+                                        ". ", private$bp_exp)
+                    }
+                } else {
+                    private$bp_exp <- NULL
+                    private$assembly <- ifelse(is.null(assembly), "hg19", assembly)
 
-                cur.msg <- paste0("Processing exp ", i, "/", 
-                                  nrow(private$org_file),
-                                  ". ", private$bp_exp)
+                    cur.msg <- "Processing current experiment."
+                }
                 cat(cur.msg, "\n", sep = "")
 
                 for(chr in self$chr){
@@ -84,9 +117,6 @@ SequenceEffect <- R6::R6Class(
                     # load human reference genome
                     private$get_ref(ind = i, chr = chr)
 
-                    # load breakpoint
-                    private$load_breakpoints(chr = chr, from_file = from_file)
-
                     for(kmer in private$k){
                         if(length(private$k) > 1){
                             cur.msg <- paste0("Calculating RMSD values for kmer ", kmer)
@@ -94,8 +124,15 @@ SequenceEffect <- R6::R6Class(
                             cat(cur.msg, l, "\n", sep = "")
                         }
 
+                        # load breakpoint
+                        private$load_breakpoints(
+                            chr = chr, 
+                            from_file = from_file,
+                            k = kmer
+                        )
+
                         # run RMSD calculations
-                        private$run_rmsd(k = kmer, chr = chr)
+                        private$run_rmsd(kmer = kmer, chr = chr)
                     }
 
                     if(length(private$k) <= 1){
@@ -201,6 +238,14 @@ SequenceEffect <- R6::R6Class(
         #' @field break_type Character vector. Choose the long range cut-off for the breakage class. 
         break_type = NULL,
 
+        #' @field break_data Numeric vector of RMSD values. 
+        break_data = NULL,
+
+        #' @field assembly Character vector. Select version of the human genome assembly.
+        assembly = "hg19",
+
+        pure_control_study = FALSE,
+
         #' @description
         #' Import full org_file.csv and filter for rows to be processed.
         #' @return None.
@@ -217,7 +262,11 @@ SequenceEffect <- R6::R6Class(
         #' @param chr Numeric vector of chromosome number.
         #' @return None.
         get_ref = function(ind, chr){
-            ref.seq <- private$org_file[ind, `Reference genome folder`]
+            if(is.null(private$break_data)){
+                ref.seq <- private$org_file[ind, `Reference genome folder`]
+            } else {
+                ref.seq <- private$assembly
+            }
             private$ref_rmsd <- paste0(
                 "../../data/ref/", ref.seq, 
                 "/chr", chr, ".fasta.gz"
@@ -259,55 +308,50 @@ SequenceEffect <- R6::R6Class(
         #' Load breakpoints for one chromosome.
         #' @param from_file Boolean. If True, will use control breakpoints obtained via Kmertone.
         #' @param chr Numeric vector of chromosome number.
+        #' @param kmer Numeric vector of kmer to perform calculation on.
         #' @return None.
-        load_breakpoints = function(from_file = FALSE, chr){
-            fetch.file <- paste0(
-                "../../data/", private$bp_exp,
-                "/breakpoint_positions/chr", 
-                chr, ".csv"
-            )
-            
-            df <- fread(
-                file = fetch.file,
-                showProgress = FALSE
-            )
-            if("freq" %in% colnames(df)) df[, lev.dist := NULL]
-            setorder(df, start.pos)
+        load_breakpoints = function(chr, kmer, from_file = FALSE){
+            to_sample_max <- 30000000
+            half_width <- max(abs(max(private$rmsd_range)))+ceiling(kmer/2)
 
-            # make sure no position will be out-of-bounds
-            df[, `:=`(
-                lower_end = start.pos+min(private$rmsd_range),
-                upper_end = start.pos+max(private$rmsd_range)
-            )]
-            df[, to_keep := ifelse(
-                lower_end > 0 & upper_end <= private$chrs_len[chr],
-                TRUE, FALSE
-            )]
-            df <- df[to_keep == TRUE]
-            df[, `:=`(lower_end = NULL, upper_end = NULL, to_keep = NULL)]
+            if(!private$pure_control_study){
+                if(is.null(private$break_data)){
+                    fetch.file <- paste0(
+                        "../../data/", private$bp_exp,
+                        "/breakpoint_positions/chr", 
+                        chr, ".csv"
+                    )
+                    
+                    df <- fread(
+                        file = fetch.file,
+                        showProgress = FALSE
+                    )
+                    if("freq" %in% colnames(df)) df[, lev.dist := NULL]
+                } else {
+                    df <- private$break_data[[paste0("chr", chr)]]
+                    setnames(df, "start.pos")
+                }
+                setorder(df, start.pos)
+
+                # make sure no position will be out-of-bounds
+                df[, `:=`(
+                    lower_end = start.pos-half_width,
+                    upper_end = start.pos+half_width
+                )]
+                df[, to_keep := ifelse(
+                    lower_end > 0 & upper_end < private$chrs_len[chr],
+                    TRUE, FALSE
+                )]
+                df <- df[to_keep == TRUE]
+                df[, `:=`(lower_end = NULL, upper_end = NULL, to_keep = NULL)]
+                
+                # how many positions to sample from (max) if 
+                # performing a comparative control study
+                to_sample_max <- nrow(df)
+            }
 
             if(private$control){
-                round_to_nearest_even <- function(x) round(x/2)*2
-                ranges <- fread(paste0(
-                    "../../../04_DNAFragility/data/range_effects/", 
-                    "MaxValuesFromClustersByType.csv"
-                ))
-                row_id <- which(ranges$type == private$break_type)
-                all_ranges <- ranges[row_id,-"type"]
-                all_ranges <- as.list(all_ranges)
-
-                # round to the nearest even number
-                long_range <- round_to_nearest_even(all_ranges$mid.range)
-
-                if(from_file){
-                    # how many positions to sample from (max)
-                    to_sample_max <- nrow(df)*0.4
-                    if(grepl("Ultrasonication", private$bp_exp) | 
-                        (private$break_type == "biological")
-                        ){
-                        to_sample_max <- 5000000
-                    }
-
+                if(from_file){                    
                     # from control regions
                     fetch.file <- paste0(
                         "../../04_KmericAnalysis/data/kmertone/", 
@@ -320,106 +364,100 @@ SequenceEffect <- R6::R6Class(
                         file = fetch.file,
                         showProgress = FALSE
                     )
+                    setcolorder(sample_points, c("start", "end"))
+                    sample_points[, seqnames := paste0("chr", chr)]
+                    sample_points[, chr_len := private$chrs_len[seqnames]]
+                    
                     sample_points[, `:=`(
-                        seqnames = paste0("chr", chr),
-                        width = end-start
+                        start = pmax(start, half_width),
+                        end = pmin(end, chr_len-half_width)
                     )]
-                    setcolorder(sample_points, c("seqnames", "start", "end", "width"))
+                    sample_points[, width := end-start]
+                    sample_points[, to_keep := ifelse(width > 0, TRUE, FALSE)]
+                    sample_points <- sample_points[to_keep == TRUE]
+                    sample_points[, to_keep := NULL]
 
                     # sample rows proportional to width
                     set.seed(self$seed)
                     sample_rows <- sample(
                         nrow(sample_points), 
-                        size = to_sample_max, 
+                        size = to_sample_max,
                         replace = TRUE, 
                         prob = sample_points$width
                     )
                     sample_points <- sample_points[sample_rows]
 
                     # sample within each chosen range
-                    sample_points[, position := sample(start:end, size = 1, replace = FALSE), 
-                                by = 1:dim(sample_points)[1]]
-                    sample_points[, start := position]
-                    sample_points[, c("seqnames", "end", "width", "position") := NULL]
-                    setorder(sample_points, start)
-                    setnames(sample_points, "start.pos")
+                    if(length(chr) == 1){
+                        sample_points[, seq_start_ID := start]
+                    } else {
+                        sample_points[, seq_start_ID := paste0(seqnames, "_", start)]
+                    }
 
-                    # remove points that may overlap within 500 bases from true break
-                    sample_points[, `:=`(
-                        seqnames = paste0("chr", chr),
-                        start = start.pos-long_range,
-                        end = start.pos+long_range
-                        # start = start.pos-ceiling(length(private$rmsd_range)/2-1),
-                        # end = start.pos+ceiling(length(private$rmsd_range)/2-1)
-                    )]
-                    sample_points_granges <- plyranges::as_granges(sample_points)
+                    # only keep the first N elements if a group has more entries than there 
+                    # are positions to be sampled from within a control region. 
+                    # sample_points[, position := start+sample(width[1], size = 1, replace = FALSE), by = seq_start_ID]
+                    # df <- sample_points
                     
-                    setnames(df, "start")
-                    df[, `:=`(
-                        seqnames = paste0("chr", chr),
-                        width = 1
-                    )]
-                    df <- plyranges::as_granges(df)
+                    df <- sample_points[, 
+                        .SD[sample(.N, pmin(.N, width))], 
+                        by = seq_start_ID
+                    ]
 
-                    sample_points <- plyranges::filter_by_non_overlaps(
-                        sample_points_granges, 
-                        df
-                    )
-                    df <- as.data.table(mcols(sample_points)$start.pos)
+                    df[, position := start+sample(
+                        width[1], size = .N, replace = FALSE
+                    ), by = seq_start_ID]
+                    df[, start := position]
+                    df[, c(
+                        "seqnames", 
+                        "end", 
+                        "width", 
+                        "position",
+                        "chr_len", 
+                        "seq_start_ID"
+                    ) := NULL]
+                    setorder(df, start)
                     setnames(df, "start.pos")
+                    setorder(df, start.pos)
                 } else {
-                    # how many positions to sample from (max)
-                    to_sample_max <- 20000000
+                    # random sampling of regions not out-of-bounds
+                    # not overlapping with true breaks
+                    sample_points <- pot_range <- GenomicRanges::GRanges(
+                        seqnames = paste0("chr", chr),
+                        IRanges(
+                            start = (half_width):(width(private$ref)-half_width),
+                            width = 1
+                        )
+                    )
+                    
+                    if(!private$pure_control_study){
+                        range_to_avoid <- GenomicRanges::GRanges(
+                            seqnames = paste0("chr", chr),
+                            IRanges(
+                                start = df$start.pos-half_width,
+                                end = df$start.pos+half_width
+                            )
+                        )
 
-                    # random sampling
+                        sample_points <- plyranges::filter_by_non_overlaps(
+                            pot_range, range_to_avoid
+                        )
+                    }
+                    pot_range <- start(sample_points)
+
                     set.seed(self$seed)
                     sample_points <- sample(
-                        width(private$ref),
-                        size = to_sample_max, 
+                        x = pot_range,
+                        size = min(to_sample_max, length(pot_range)), 
                         replace = FALSE
                     )
-
-                    # remove points that may overlap within 500 bases from the true break
-                    sample_points_granges <- data.table(
-                        seqnames = paste0("chr", chr),
-                        start = sample_points-long_range,
-                        end = sample_points+long_range,
-                        # start = sample_points-ceiling(length(private$rmsd_range)/2-1),
-                        # end = sample_points+ceiling(length(private$rmsd_range)/2-1), 
-                        start.pos = sample_points
-                    ) %>% plyranges::as_granges()
-                    
-                    setnames(df, "start")
-                    df[, `:=`(
-                        seqnames = paste0("chr", chr),
-                        width = 1
-                    )]
-                    df <- plyranges::as_granges(df)
-
-                    sample_points <- plyranges::filter_by_non_overlaps(
-                        sample_points_granges, 
-                        df
-                    )
-                    sample_points <- as.numeric(mcols(sample_points)$start.pos)
-
-                    # get substring of reference sequence
-                    ref_seqs <- substring(
-                        text = private$ref,
-                        first = sample_points,
-                        last = sample_points+1
-                    )
-                    to.keep <- which(!stringr::str_detect(
-                        string = ref_seqs,
-                        pattern = "N"
-                    ))
-                    sample_points <- sample_points[to.keep]
-                    sample_points <- unique(sample_points)
-                    sample_points <- sort(sample_points)
                     df <- data.table(start.pos = sample_points)
+                    setorder(df, start.pos)
                 }
                 df <- unique(df, by = "start.pos")
             } 
             private$df_bp <- df
+            self$size_of_data[[paste0("chr", chr)]] <- nrow(private$df_bp)
         },
 
         #' @description
@@ -436,6 +474,13 @@ SequenceEffect <- R6::R6Class(
                 rmsd_range = private$rmsd_range
             )
 
+            # if performing both a true and control study, then normalise
+            # by the bigger denominator {true, control}_breakpoint data set
+            # to compare both on the same set of RMSD y-axis
+            # if(private$control){
+            #     rmsd.values <- rmsd.values/self$size_of_data
+            # }
+
             if(private$return_vals){
                 self$results[[paste0("chr", chr)]] <- rmsd.values
             } else {
@@ -449,11 +494,12 @@ SequenceEffect <- R6::R6Class(
                     object = rmsd.values,
                     file = paste0(
                         "../data/", private$bp_exp,
+                        "/chr", chr,
                         ifelse(private$control, 
-                        paste0("/control_rmsd_kmer_", 
-                            kmer, "_seed_", self$seed), 
-                        paste0("/rmsd_kmer_", kmer)),
-                        ".Rdata")
+                        paste0("_control_rmsd_kmer_", kmer, "_seed_", self$seed), 
+                        paste0("_rmsd_kmer_", kmer)),
+                        ".Rdata"
+                    )
                 )
             }
         }
