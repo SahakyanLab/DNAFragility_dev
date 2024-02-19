@@ -143,7 +143,7 @@ Place each of the 22 chromosome-separated FASTA files into the respective folder
 * [GSE121742 (sBLISS/CD34_Top2_mediated_DSBs/ETO_rep1)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3687nnn/GSM3687237/suppl/GSM3687237%5FCD34%5FETO%5Frep1.bed.gz)
 * [GSE121742 (sBLISS/CD34_Top2_mediated_DSBs/ETO_rep2)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3687nnn/GSM3687239/suppl/GSM3687239%5FCD34%5FETO%5Frep2.bed.gz)
 * [GSE121742 (sBLISS/K562_Top2_mediated_DSBs/ETO)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444989/suppl/GSM3444989%5FK562%5FETO.bed.gz)
-* [GSE121742 (sBLISS/K562_Top2_mediated_DSBs/DMSO)](ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444988/suppl/GSM3444988%5FK562%5FDMSO.bed.gz)
+* [GSE121742 (sBLISS/K562_Top2_mediated_DSBs/DMSO)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444988/suppl/GSM3444988%5FK562%5FDMSO.bed.gz)
 * [GSE121742 (sBLISS/TK6_Top2_mediated_DSBs/DMSO_rep1)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444984/suppl/GSM3444984%5FTK6%5FDMSO%5Frep1.bed.gz)
 * [GSE121742 (sBLISS/TK6_Top2_mediated_DSBs/DMSO_rep2)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444986/suppl/GSM3444986%5FTK6%5FDMSO%5Frep2.bed.gz)
 * [GSE121742 (sBLISS/TK6_Top2_mediated_DSBs/ETO_rep1)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3444nnn/GSM3444985/suppl/GSM3444985%5FTK6%5FETO%5Frep1.bed.gz)
