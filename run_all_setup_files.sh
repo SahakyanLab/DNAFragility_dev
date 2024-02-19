@@ -24,6 +24,15 @@ mkdir -p ./data/04_QM_parameters/6mer/Raw
 cd ./setup/
 bash install_packages.sh
 
+# unzip files
+cd ./data/01_Epigenome/Chipseq/POL2B/
+for folder in ./* ; do gunzip $folder/* ; done
+cd ../
+
+cd ./data/01_Epigenome/Chipseq/Histone/*
+for folder in ./* ; do gunzip $folder/* ; done
+cd ../../../../
+
 # download natural decay files
 for folder in ./data/00_Breakage/Ancient_DNA/*
 do
