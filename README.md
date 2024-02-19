@@ -211,14 +211,6 @@ Place them into their respective folders, where `.Sap` files go into [data/00_Br
 bash process_files.sh
 ```
 
-## Liftover files
-
-We processed all datasets in the reference genome version used as per the deposition. For the TFBS, we lifted them over from hg38 to hg19.
-
-* [hg38 to hg19](https://hgdownload.cse.ucsc.edu/goldenpath/hg38/liftOver/hg38ToHg19.over.chain.gz)
-
-Unpack and extract the relevant files. Place the contents into [data/liftover/](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/liftover/) folder. 
-
 ### Transcription Factor data
 
 We retrieved 247 core-validated vertebrate transcript factor binding sites (TFBS) from the [JASPAR 2024 database](https://jaspar.elixir.no/downloads/).
@@ -238,6 +230,72 @@ Rscript jaspar_download.R
 
 The quantum mechanical hexameric parameters `denergy.txt.gz` can be downloaded from [DNAkmerQM](https://github.com/SahakyanLab/DNAkmerQM/tree/master/6-mer). Uncompress the file and place it into [data/04_QM_parameters/6mer/Raw/denergy.txt](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/04_QM_parameters/6mer/Raw/denergy.txt) folder.
 
+### Epigenome marks
+
+**ATACseq datasets**
+* [ENCFF296ZZB (ATACseq/HCT116)](https://www.encodeproject.org/files/ENCFF296ZZB/@@download/ENCFF296ZZB.bed.gz)
+* [ENCFF558BLC (ATACseq/K562)](https://www.encodeproject.org/files/ENCFF558BLC/@@download/ENCFF558BLC.bed.gz)
+* [ENCFF821OEF (ATACseq/MCF7)](https://www.encodeproject.org/files/ENCFF821OEF/@@download/ENCFF821OEF.bed.gz)
+
+**FAIREseq datasets**
+* [ENCFF001UYM (FAIREseq/HeLa_S3)](https://www.encodeproject.org/files/ENCFF001UYM/@@download/ENCFF001UYM.bed.gz)
+* [ENCFF001UYS (FAIREseq/K562)](https://www.encodeproject.org/files/ENCFF001UYS/@@download/ENCFF001UYS.bed.gz)
+* [ENCFF001UYW (FAIREseq/MCF7)](https://www.encodeproject.org/files/ENCFF001UYW/@@download/ENCFF001UYW.bed.gz)
+
+**DNaseseq datasets**
+* [ENCFF579UXQ (DNaseseq/Caco2)](https://www.encodeproject.org/files/ENCFF579UXQ/@@download/ENCFF579UXQ.bed.gz)
+* [ENCFF240LRP (DNaseseq/HCT116)](https://www.encodeproject.org/files/ENCFF240LRP/@@download/ENCFF240LRP.bed.gz)
+* [ENCFF024UJN (DNaseseq/HeLa_S3)](https://www.encodeproject.org/files/ENCFF024UJN/@@download/ENCFF024UJN.bed.gz)
+* [ENCFF773SFA (DNaseseq/HL60)](https://www.encodeproject.org/files/ENCFF773SFA/@@download/ENCFF773SFA.bed.gz)
+* [Hypersensitive clusters (DNaseseq/HyperSensitive_Clusters)](http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegDnaseClustered/wgEncodeRegDnaseClusteredV3.bed.gz)
+* [ENCFF274YGF (DNaseseq/K562)](https://www.encodeproject.org/files/ENCFF274YGF/@@download/ENCFF274YGF.bed.gz)
+* [ENCFF438LQM (DNaseseq/MCF7)](https://www.encodeproject.org/files/ENCFF438LQM/@@download/ENCFF438LQM.bed.gz)
+
+**Chipseq datasets**
+* [ENCFF579UXQ (Chipseq/H3K4me2_NHEK_cells)](https://www.encodeproject.org/files/ENCFF579UXQ/@@download/ENCFF579UXQ.bed.gz)
+
+**Histone**
+* [GSM5501177 (Chipseq/Histone/H3K4me2_DMSO_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501177/suppl/GSM5501177%5FDMSO%5FH3K4%5Fme2%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM5501178 (Chipseq/Histone/H3K4me2_LSD1-inhib_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501178/suppl/GSM5501178%5Finib%5F2%5F5%5FH3K4%5Fme2%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM5501179 (Chipseq/Histone/H3K4me3_DMSO_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501179/suppl/GSM5501179%5FDMSO%5FH3K4%5Fme3%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM5501180 (Chipseq/Histone/H3K4me3_LSD1-inhib_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501180/suppl/GSM5501180%5Finib%5F2%5F5%5FH3K4%5Fme3%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM5501175 (Chipseq/Histone/H3K4me1_DMSO_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501175/suppl/GSM5501175%5FDMSO%5FH3K4%5Fme1%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM5501176 (Chipseq/Histone/H3K4me1_LSD1-inhib_GBM_tumor_initiating_cell_line)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5501nnn/GSM5501176/suppl/GSM5501176%5Finib%5F2%5F5%5FH3K4%5Fme1%5Fvs%5Finput%5Fpeaks.txt.gz)
+* [GSM1035424 (Chipseq/SUMO1/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035424/suppl/GSM1035424%5Fprolif%5FSUMO1%5Frep1%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035433 (Chipseq/SUMO1/Ras-induced-senescent_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035433/suppl/GSM1035433%5Fras%5FSUMO1%5Frep1%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035426 (Chipseq/SUMO2/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035426/suppl/GSM1035426%5Fprolif%5FSUMO2%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035435 (Chipseq/SUMO2/Ras-induced-senescent_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035435/suppl/GSM1035435%5Fras%5FSUMO2%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035427 (Chipseq/Ubc9/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035427/suppl/GSM1035427%5Fprolif%5FUbc9%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035436 (Chipseq/Ubc9/Ras-induced-senescent_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035436/suppl/GSM1035436%5Fras%5FUbc9%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035441 (Chipseq/PIASy/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035441/suppl/GSM1035441%5Fprolif%5FPIASy%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035442 (Chipseq/PIASy/Ras-induced-senescent_fibro_WI38_cells)](ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035442/suppl/GSM1035442%5Fras%5FPIASy%5FChIPSeq%5Fpeaks.bed.gz)
+
+Download the two NhekH3k4me3 replicas from the GEO accession number GSM945175 [rep1](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945175/suppl/GSM945175%5Fhg19%5FwgEncodeUwHistoneNhekH3k4me3StdPkRep1.narrowPeak.gz) and [rep2](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945175/suppl/GSM945175%5Fhg19%5FwgEncodeUwHistoneNhekH3k4me3StdPkRep2.narrowPeak.gz). Concatenate the two files, retain unique ranges, and keep one file in [Chipseq/Histone/H3K4me3_NHEK_cells](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/01_Epigenome/Chipseq/Histone/H3K4me3_NHEK_cells) folder.
+
+Download the two NhekH3k36me3 replicas from the GEO accession number GSM945175 [rep1](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945174/suppl/GSM945174%5Fhg19%5FwgEncodeUwHistoneNhekH3k36me3StdPkRep1.narrowPeak.gz) and [rep2](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945174/suppl/GSM945174%5Fhg19%5FwgEncodeUwHistoneNhekH3k36me3StdPkRep2.narrowPeak.gz). Concatenate the two files, retain unique ranges, and keep one file in [Chipseq/Histone/H3K36me3_NHEK_cells](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/01_Epigenome/Chipseq/Histone/H3K36me3_NHEK_cells) folder.
+
+The following 9 histone marks were obtained from GEO accession [GSE29611](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE29611) with individual files already saved in the appropriate file structure, as also used in the [DSBCapture study](https://doi.org/10.1038/nmeth.3960), including: H2AZ_NHEK_cells, EZH2_NHEK_cells, H3K27ac_NHEK_cells, H3K4me2_NHEK_cells, H3K27me3_NHEK_cells, H3K79me2_NHEK_cells, H3K4me1_NHEK_cells, H3K9me3_NHEK_cells, POL2B.
+
+### ENCODE Blacklist regions
+
+Please download the ENCODE Blacklist regions for [hg19 from here](https://github.com/Boyle-Lab/Blacklist/blob/master/lists/hg19-blacklist.v2.bed.gz) and [for hg38 from here](https://github.com/Boyle-Lab/Blacklist/blob/master/lists/hg38-blacklist.v2.bed.gz). Uncompress them, and name them `hg19.bed` and `hg38.bed`, respectively.
+
+Place the contents into [data/blacklists/](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/blacklists/).
+
+### Hi-C annotations
+
+We retrieved the hg19-annotated Hi-C subcompartment data of the K562 and HeLa cell lines [from here](https://cmu.app.box.com/s/n4jh3utmitzl88264s8bzsfcjhqnhaa0/folder/86847304302).
+
+Place the contents into [data/HiC_annotations/](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/HiC_annotations/).
+
+## Liftover files
+
+We processed all datasets in the reference genome version used as per the deposition. For the TFBS, we lifted them over from hg38 to hg19.
+
+* [hg38 to hg19](https://hgdownload.cse.ucsc.edu/goldenpath/hg38/liftOver/hg38ToHg19.over.chain.gz)
+
+Unpack and extract the relevant files. Place the contents into [data/liftover/](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/liftover/) folder. 
+
 ## Other notes
 
 * All cpp files are interfaced *via* the [Rcpp](https://cran.r-project.org/web/packages/Rcpp/index.html) library in R with `omp.h` when possible. Please ensure you have this installed.
@@ -245,7 +303,12 @@ The quantum mechanical hexameric parameters `denergy.txt.gz` can be downloaded f
 
 ## Run all setup files
 
-If you wish to run all setups, including all the aforementioned bash scripts, please run the below bash script.
+If you wish to run all setups, including all the aforementioned bash scripts, please run the below bash script. 
+
+Please note that many of the calculations were computationally intensive. Most things were run in parallel in smaller batches. However, if you submit the below bash script, it runs all scripts sequentially. This can **take several months** to complete. 
+Most tasks take up several tens to hundreds of GBs worth of RAM. The entire study requires between 2-4 TB of hard drive space.
+
+You may need to monitor your memory usage, memory cache, and swap to ensure calculations run smoothly.
 
 ```bash
 bash run_all_setup_files.sh
