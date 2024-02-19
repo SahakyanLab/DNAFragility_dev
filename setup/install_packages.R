@@ -5,7 +5,7 @@ reg_libs <- c(
 
     # plotting
     "ggplot2", "ggsignif", "ggrepel",
-    "gridExtra", "dendextend", "gplots", "RColorBrewer"
+    "gridExtra", "dendextend", "gplots", "RColorBrewer",
 
     # others
     "pbapply", "Rcpp", "caret", "DNAshapeR", "RCy3",

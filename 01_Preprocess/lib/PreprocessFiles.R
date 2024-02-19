@@ -25,7 +25,7 @@ PreprocessFiles <- R6::R6Class(
             )
 
             dir.to.create <- c(
-                "hg18", "hg19", "hg38", "hs37d5", "1000_Genomes_exp"
+                "hg18", "hg19", "hg38", "hs37d5"
             )
 
             for(package in packages){
@@ -78,7 +78,7 @@ PreprocessFiles <- R6::R6Class(
                     pattern = "*.fasta.gz"
                 )
 
-                if(length(check.files.exist) <= 22){
+                if(length(check.files.exist) < 22){
                     for(x in 1:22){
                         if(("1000_Genomes_exp" == dir.to.create[i]) | 
                            ("1000_Genomes_Pilot" == dir.to.create[i])){
@@ -160,7 +160,7 @@ PreprocessFiles <- R6::R6Class(
                     files.to.process <- stringr::str_sort(files.to.process, numeric = TRUE)                  
                     do.not.process <- stringr::str_extract(
                         string = files.to.process, 
-                        pattern = "fastq|fasta|bam|bai|sh"
+                        pattern = ".fastq$|.fasta$|.bam$|.bai$|.sh$|.R$|.py$"
                     )                    
                     files.to.process <- files.to.process[is.na(do.not.process)]
                     file.names <- stringr::str_sort(stringr::str_extract(

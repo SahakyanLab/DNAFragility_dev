@@ -17,6 +17,7 @@ mkdir -p ./data/00_Breakage/CCseq/RPE-1_Top2-linked_DNA_DSBs/{WG13-WG21_RPE1_WT_
 mkdir -p ./data/00_Breakage/sBLISS/{TK6_Top2_mediated_DSBs,CD34_Top2_mediated_DSBs}/{DMSO_rep1,DMSO_rep2,ETO_rep1,ETO_rep2}
 mkdir -p ./data/00_Breakage/sBLISS/K562_Top2_mediated_DSBs/{ETO,DMSO}
 mkdir -p ./data/00_Breakage/sBLISS/Colibactin_Ecoli_induced_DSBs/{ETO,DMSO,Caco-2_etoposide_rep1,Caco-2_etoposide_rep2,Caco-2_etoposide_rep3,Caco-2_etoposide_rep4,Caco-2_pks_minus_Ecoli_rep1,Caco-2_pks_minus_Ecoli_rep2,Caco-2_pks_minus_Ecoli_rep3,Caco-2_pks_minus_Ecoli_rep4,Caco-2_pks_plus_Ecoli_rep1,Caco-2_pks_plus_Ecoli_rep2}
+mkdir -p ./data/03_G4maps/G4seq_primary_B_lymphocytes
 mkdir -p ./data/04_QM_parameters/6mer/Raw
 
 # install relevant software
@@ -31,6 +32,11 @@ do
     bash $sh_file
     cd ../../../../
 done
+
+# process G4 structures
+cd ./data/03_G4maps/G4seq_primary_B_lymphocytes
+Rscript Process.R
+cd ../../../
 
 # process transcription factors
 cd ./data/02_JASPAR/
