@@ -8,7 +8,6 @@
 #include <Rcpp.h>
 
 // for parallelisation
-#include <omp.h>
 using namespace Rcpp;
 
 // fast levenshtein distance calculation with edlib 
@@ -43,7 +42,6 @@ NumericMatrix LevenshteinLoop(Rcpp::CharacterMatrix mat){
   Rcpp::NumericMatrix out(nrow, ncol);
 
   // parallel loop
-  #pragma omp parallel for
   for(int i = 0; i < nrow; ++i){
     for(int j = 0; j < ncol; ++j){
       out(i, j) = Levenshtein(mat(i, j), mat(i, ncol));

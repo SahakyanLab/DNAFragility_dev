@@ -72,7 +72,7 @@ ProcessReads <- R6::R6Class(
                     recursive = TRUE
                 ))              
 
-                if(concat.chr.alignments.done < 22){
+                if(raw.chr.alignments.done < 22 & concat.chr.alignments.done == 0){
                     # loop over each chromosome
                     for(chr in max(c(raw.chr.alignments.done, 1)):22){
                         # progress message
@@ -113,7 +113,10 @@ ProcessReads <- R6::R6Class(
                 # obtain average levdist for all chromosomes
                 private$bp_pos_path <- paste0("../../data/", private$bp_exp,
                                               "/breakpoint_positions")
-                if(raw.chr.alignments.done == 22) private$calc_avg_levdist()
+                if(!dir.exists(paste0("../../data/", 
+                    private$bp_exp, "/average_levdist"))){
+                    private$calc_avg_levdist()
+                }
 
                 # concatenate breakpoints into single file
                 if(concat.chr.alignments.done < 22) private$concat_breakpoints()
@@ -706,11 +709,11 @@ ProcessReads <- R6::R6Class(
                     )
                     
                     # rm txt files and only keep csv files
-                    folder.to.rm <- unique(stringr::str_remove(
-                        string = files,
-                        pattern = "/alignment_file_[[:digit:]]+.txt"
-                    ))
-                    system(paste0("/bin/rm -r ", folder.to.rm))
+                    dir.to.remove <- paste0(
+                        "../../data/", private$bp_exp, 
+                        "/breakpoint_positions/chr", i, "/"
+                    )
+                    unlink(dir.to.remove, recursive = TRUE, force = TRUE)
                 }
             }   
 
@@ -725,7 +728,7 @@ ProcessReads <- R6::R6Class(
         #' @return None.
         filter_dna_with_masks = function(){
             t1 <- Sys.time()
-            cur.msg <- "Filter genomic DNA by provided masked/blacklist bed files"
+            cur.msg <- "Filter genomic DNA by provided masked or blacklist bed files"
             l <- paste0(rep(".", 70-nchar(cur.msg)), collapse = "")
             cat(paste0(cur.msg, l))
 
@@ -748,7 +751,7 @@ ProcessReads <- R6::R6Class(
                             start = df$start.pos, 
                             width = 1
                         )
-                        df.bp <- as_granges(df.bp)
+                        df.bp <- plyranges::as_granges(df.bp)
 
                         # authors said these are regions to INCLUDE
                         df.bed <- plyranges::read_bed(paste0(
@@ -782,7 +785,7 @@ ProcessReads <- R6::R6Class(
                             start = df$start.pos, 
                             width = 1
                         )
-                        df.bp <- as_granges(df.bp)
+                        df.bp <- plyranges::as_granges(df.bp)
                         df.overlaps <- plyranges::filter_by_non_overlaps(df.bp, df.bed.all.pos)
                     }
 
