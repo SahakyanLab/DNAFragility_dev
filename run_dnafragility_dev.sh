@@ -1,21 +1,21 @@
 #!/bin/bash
 
 # preprocess files
-cd ./01_Process
+cd ./01_Preprocess/scripts
 bash submit.sh
-cd ../
+cd ../../
 
 # align reads
-cd ./02_Alignment
+cd ./02_Alignment/scripts
 bash submit.sh
-cd ../
+cd ../../
 
 # fit curves
-cd ./03_FitCurves
+cd ./03_FitCurves/scripts
 bash submit.sh
-cd ../
+cd ../../
 
 # run kmertone
-cd ./04_KmerAnalysis
+cd ./04_KmericAnalysis/scripts
 bash submit.sh
-cd ../
+cd ../../

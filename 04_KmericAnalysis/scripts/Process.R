@@ -23,7 +23,7 @@ action <- as.character(args[3])
 
 source("../lib/Kmertone/kmertone.R")
 source("../lib/AnalyseKmers.R")
-Rcpp::sourceCpp("../lib/edlibFunction.cpp")
+Rcpp::sourceCpp("../../02_Alignment/lib/edlibFunction.cpp")
 
 analyse_kmers <- AnalyseKmers$new(
     which_exp_ind = NULL,
