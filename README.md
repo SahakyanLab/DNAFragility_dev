@@ -305,11 +305,17 @@ Unpack and extract the relevant files. Place the contents into [data/liftover/](
 
 If you wish to run all setups, including all the aforementioned bash scripts, please run the below bash script. 
 
+```bash
+bash run_all_setup_files.sh
+```
+
+## Run the full DNAFragility_dev study
+
 Please note that many of the calculations were computationally intensive. Most things were run in parallel in smaller batches. However, if you submit the below bash script, it runs all scripts sequentially. This can **take several months** to complete. 
 Most tasks take up several tens to hundreds of GBs worth of RAM. The entire study requires between 2-4 TB of hard drive space.
 
 You may need to monitor your memory usage, memory cache, and swap to ensure calculations run smoothly.
 
 ```bash
-bash run_all_setup_files.sh
+bash run_dnafragility_dev.sh
 ```
