@@ -1,0 +1,36 @@
+reg_libs <- c(
+    # data wrangling
+    "data.table", "dplyr", "stringr",
+    "purrr",
+
+    # plotting
+    "ggplot2", "ggsignif", "ggrepel",
+    "gridExtra", "dendextend", "gplots", "RColorBrewer"
+
+    # others
+    "pbapply", "Rcpp", "caret", "DNAshapeR", "RCy3",
+    "mclust", "cluster", "factoextra", "ggseqlogo"
+)
+to_install <- reg_libs[!reg_libs %in% installed.packages()]
+for(lib in to_install){
+    install.packages(
+        lib, 
+        dependencies = TRUE,
+        repos = 'http://cran.uk.r-project.org'
+    )
+}
+
+bioscience_libs <- c(
+    # data wrangling and more
+    "plyranges", "Biostrings", "rtracklayer", "Rsamtools",
+
+    # reference genomes
+    "BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0",
+    "BSgenome.Hsapiens.1000genomes.hs37d5",
+    "BSgenome.Hsapiens.UCSC.hg18",
+    "BSgenome.Hsapiens.UCSC.hg19"
+)
+to_install <- bioscience_libs[!bioscience_libs %in% installed.packages()]
+for(lib in to_install){
+    BiocManager::install(lib, update = TRUE, ask = FALSE)
+}
