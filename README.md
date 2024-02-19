@@ -268,7 +268,7 @@ The quantum mechanical hexameric parameters `denergy.txt.gz` can be downloaded f
 * [GSM1035427 (Chipseq/Ubc9/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035427/suppl/GSM1035427%5Fprolif%5FUbc9%5FChIPSeq%5Fpeaks.bed.gz)
 * [GSM1035436 (Chipseq/Ubc9/Ras-induced-senescent_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035436/suppl/GSM1035436%5Fras%5FUbc9%5FChIPSeq%5Fpeaks.bed.gz)
 * [GSM1035441 (Chipseq/PIASy/Proliferative_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035441/suppl/GSM1035441%5Fprolif%5FPIASy%5FChIPSeq%5Fpeaks.bed.gz)
-* [GSM1035442 (Chipseq/PIASy/Ras-induced-senescent_fibro_WI38_cells)](ftp://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035442/suppl/GSM1035442%5Fras%5FPIASy%5FChIPSeq%5Fpeaks.bed.gz)
+* [GSM1035442 (Chipseq/PIASy/Ras-induced-senescent_fibro_WI38_cells)](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM1035nnn/GSM1035442/suppl/GSM1035442%5Fras%5FPIASy%5FChIPSeq%5Fpeaks.bed.gz)
 
 Download the two NhekH3k4me3 replicas from the GEO accession number GSM945175 [rep1](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945175/suppl/GSM945175%5Fhg19%5FwgEncodeUwHistoneNhekH3k4me3StdPkRep1.narrowPeak.gz) and [rep2](https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM945nnn/GSM945175/suppl/GSM945175%5Fhg19%5FwgEncodeUwHistoneNhekH3k4me3StdPkRep2.narrowPeak.gz). Concatenate the two files, retain unique ranges, and keep one file in [Chipseq/Histone/H3K4me3_NHEK_cells](https://github.com/SahakyanLab/DNAFragility_dev/tree/master/data/01_Epigenome/Chipseq/Histone/H3K4me3_NHEK_cells) folder.
 
