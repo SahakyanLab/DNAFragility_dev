@@ -122,8 +122,16 @@ PreprocessFiles <- R6::R6Class(
             start.time <- Sys.time()            
             if(is.null(self$which_exp_ind)){
                 self$which_exp_ind <- which(
-                    private$org_file$Processed == "TRUE"
+                    private$org_file$Processed == "TRUE" & 
+                    private$org_file$`DSB Map` == "TRUE"
                 )
+
+                # already processed independently 
+                self$which_exp_ind <- self$which_exp_ind[!grepl(
+                    pattern = "Nt_BbvCI_K562_cells",
+                    x = private$org_file[Processed == "TRUE", `Experiment folder`]
+                )]
+                self$which_exp_ind <- self$which_exp_ind[!is.na(self$which_exp_ind)]
             }
             len.of.loop <- self$which_exp_ind
 
@@ -316,9 +324,19 @@ PreprocessFiles <- R6::R6Class(
 
             } else if(file.type == "BED" | file.type == "CSV" | file.type == "TXT"){
                 df <- fread(file, showProgress = FALSE)
+                any.strands <- sapply(4:ncol(df), function(x){
+                    all(c("+", "-") %in% unique(df[[x]]))
+                })
+
                 if(any(c("Watson", "Crick") %in% colnames(df))){
                     setnames(df, paste0("V", 1:4))
                     df[, `:=`(V3 = (V2+1)-V2, V4 = ifelse(V3 == 1, "+", "-"))]
+                } else if(any(any.strands)){
+                    temp <- df[, .(V1, V2, V3)]
+                    strand.col <- 4+which(any.strands)-1
+                    df <- cbind(temp, df[, ..strand.col])
+                    df[, V3 := (V2+1)-V2]
+                    setnames(df, paste0("V", 1:ncol(df)))
                 } else if(length(grep(pattern = "Recombination", x = file)) > 0){
                     setnames(df, paste0("V", 1:4))
                     df <- df[, .(V1, V2)]
@@ -326,8 +344,7 @@ PreprocessFiles <- R6::R6Class(
                 } else {
                     setnames(df, paste0("V", 1:ncol(df)))
                     
-                    if(any(!is.na(stringr::str_extract(string = unique(df$V1), 
-                                                        pattern = "chr")))){
+                    if(any(!is.na(stringr::str_extract(string = unique(df$V1), pattern = "chr")))){
                         df <- df[V1 %in% paste0("chr", 1:22)]
                     } else {
                         df <- df[V1 %in% as.character(1:22)]
@@ -339,6 +356,10 @@ PreprocessFiles <- R6::R6Class(
                     df[, V3 := NULL]
                 }
 
+
+                if(!all(grepl(pattern = "chr", x = unique(df$V1)))){
+                    df[, V1 := paste0("chr", V1)]
+                }
                 setnames(df, c("seqnames", "start", "width", "strand"))
                 df <- plyranges::as_granges(df)                
             } else if(file.type == "BEDGRAPH"){
